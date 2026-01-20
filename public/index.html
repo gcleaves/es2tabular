@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ES2Tabular - Elasticsearch Query to CSV Converter</title>
+    <!-- Load Monaco Editor before Alpine.js -->
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
         * {
@@ -131,6 +133,20 @@
             font-size: 13px;
             line-height: 1.5;
             flex: 1;
+        }
+
+        /* Monaco Editor container */
+        #monaco-editor-container {
+            width: 100%;
+            flex: 1;
+            min-height: 400px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        #monaco-editor-container:focus-within {
+            border-color: #667eea;
         }
 
         form {
@@ -323,7 +339,7 @@
             }
         }
 
-        @media (max-width: 768px) {
+            @media (max-width: 768px) {
             .container {
                 max-width: 100%;
                 padding: 0 10px;
@@ -334,6 +350,10 @@
             }
 
             textarea {
+                min-height: 300px;
+            }
+
+            #monaco-editor-container {
                 min-height: 300px;
             }
         }
@@ -373,12 +393,7 @@
 
                 <div class="form-group">
                     <label for="query">Elasticsearch Query (JSON)</label>
-                    <textarea 
-                        id="query" 
-                        x-model="query" 
-                        placeholder='{"size": 0, "aggs": {...}}'
-                        required
-                    ></textarea>
+                    <div id="monaco-editor-container"></div>
                 </div>
 
                 <div class="button-group">
@@ -473,6 +488,17 @@
     </div>
 
     <script>
+        // Initialize Monaco Editor
+        let monacoEditor = null;
+        let monacoReady = false;
+
+        require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+        
+        require(['vs/editor/editor.main'], function () {
+            monacoReady = true;
+            console.log('Monaco Editor loaded');
+        });
+
         function app() {
             return {
                 index: '',
@@ -492,7 +518,10 @@
                     this.csvResult = null;
 
                     try {
-                        const queryObj = JSON.parse(this.query);
+                        // Get query from Monaco editor if available, otherwise use Alpine model
+                        const queryText = monacoEditor ? monacoEditor.getValue() : this.query;
+                        this.query = queryText; // Sync back to Alpine model
+                        const queryObj = JSON.parse(queryText);
                         
                         const response = await fetch('/api/query', {
                             method: 'POST',
@@ -627,6 +656,63 @@
 
                 init() {
                     this.loadFiles();
+                    this.initMonacoEditor();
+                },
+
+                initMonacoEditor() {
+                    // Wait for Monaco to be ready
+                    const checkMonaco = setInterval(() => {
+                        if (monacoReady && typeof monaco !== 'undefined') {
+                            clearInterval(checkMonaco);
+                            
+                            // Small delay to ensure DOM is ready
+                            setTimeout(() => {
+                                const container = document.getElementById('monaco-editor-container');
+                                if (container && !monacoEditor) {
+                                    try {
+                                        monacoEditor = monaco.editor.create(container, {
+                                            value: this.query,
+                                            language: 'json',
+                                            theme: 'vs',
+                                            automaticLayout: true,
+                                            minimap: { enabled: false },
+                                            scrollBeyondLastLine: false,
+                                            fontSize: 14,
+                                            lineNumbers: 'on',
+                                            roundedSelection: false,
+                                            scrollbar: {
+                                                verticalScrollbarSize: 10,
+                                                horizontalScrollbarSize: 10
+                                            },
+                                            formatOnPaste: true,
+                                            formatOnType: true,
+                                            tabSize: 2,
+                                            insertSpaces: true
+                                        });
+
+                                        // Sync Monaco changes to Alpine model
+                                        monacoEditor.onDidChangeModelContent(() => {
+                                            this.query = monacoEditor.getValue();
+                                        });
+
+                                        console.log('Monaco Editor initialized successfully');
+                                    } catch (error) {
+                                        console.error('Error initializing Monaco Editor:', error);
+                                        // Fallback: show error but don't break the app
+                                        this.showMessage('Editor initialization failed. Using textarea fallback.', 'error');
+                                    }
+                                }
+                            }, 100);
+                        }
+                    }, 50);
+
+                    // Timeout after 5 seconds
+                    setTimeout(() => {
+                        clearInterval(checkMonaco);
+                        if (!monacoEditor) {
+                            console.warn('Monaco Editor failed to load within timeout');
+                        }
+                    }, 5000);
                 }
             }
         }
