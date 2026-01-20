@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { KibanaClient } from './lib/kibana-client.js';
 import { esToTable, tableToCSV } from './index.js';
+import { DuckDBService } from './lib/duckdb-service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -26,6 +27,19 @@ if (!fs.existsSync(DATA_DIR)) {
 
 // Initialize Kibana client
 const kibanaClient = new KibanaClient();
+
+// Initialize DuckDB service
+const duckdb = new DuckDBService(DATA_DIR);
+
+// Initialize DuckDB on startup
+(async () => {
+  try {
+    await duckdb.init();
+    console.log('DuckDB service initialized');
+  } catch (error) {
+    console.error('Failed to initialize DuckDB:', error);
+  }
+})();
 
 /**
  * API Route: Execute Elasticsearch query
@@ -218,9 +232,183 @@ app.delete('/api/files/:filename', (req, res) => {
   }
 });
 
+// ============================================
+// DuckDB API Routes
+// ============================================
+
+/**
+ * API Route: Execute DuckDB SQL query
+ * POST /api/duckdb/query
+ * Body: { sql: string }
+ */
+app.post('/api/duckdb/query', async (req, res) => {
+  try {
+    const { sql } = req.body;
+
+    if (!sql) {
+      return res.status(400).json({ error: 'SQL query is required' });
+    }
+
+    const startTime = Date.now();
+    const result = await duckdb.query(sql);
+    const executionTime = Date.now() - startTime;
+
+    res.json({
+      success: true,
+      columns: result.columns,
+      rows: result.rows,
+      rowCount: result.rowCount,
+      executionTime
+    });
+  } catch (error) {
+    console.error('DuckDB query error:', error);
+    res.status(500).json({
+      error: 'Query execution failed',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * API Route: Load CSV into DuckDB table
+ * POST /api/duckdb/load
+ * Body: { path: string, tableName?: string }
+ * path can be a local filename (from data dir) or S3 URL
+ */
+app.post('/api/duckdb/load', async (req, res) => {
+  try {
+    const { path: csvPath, tableName } = req.body;
+
+    if (!csvPath) {
+      return res.status(400).json({ error: 'CSV path is required' });
+    }
+
+    // Determine if it's a local file or remote URL
+    let fullPath = csvPath;
+    if (!csvPath.startsWith('s3://') && !csvPath.startsWith('http://') && !csvPath.startsWith('https://')) {
+      // Local file - resolve relative to data directory
+      fullPath = path.join(DATA_DIR, csvPath);
+      if (!fs.existsSync(fullPath)) {
+        return res.status(404).json({ error: 'File not found' });
+      }
+    }
+
+    // Generate table name if not provided
+    const name = tableName || path.basename(csvPath, '.csv').replace(/[^a-zA-Z0-9_]/g, '_');
+
+    const result = await duckdb.loadCsv(fullPath, name);
+
+    res.json({
+      success: true,
+      ...result
+    });
+  } catch (error) {
+    console.error('DuckDB load error:', error);
+    res.status(500).json({
+      error: 'Failed to load CSV',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * API Route: List DuckDB tables
+ * GET /api/duckdb/tables
+ */
+app.get('/api/duckdb/tables', async (req, res) => {
+  try {
+    const tables = await duckdb.listTables();
+    res.json({ success: true, tables });
+  } catch (error) {
+    console.error('DuckDB list tables error:', error);
+    res.status(500).json({
+      error: 'Failed to list tables',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * API Route: Get table schema
+ * GET /api/duckdb/tables/:tableName
+ */
+app.get('/api/duckdb/tables/:tableName', async (req, res) => {
+  try {
+    const { tableName } = req.params;
+    const schema = await duckdb.describeTable(tableName);
+    res.json({ success: true, tableName, schema });
+  } catch (error) {
+    console.error('DuckDB describe table error:', error);
+    res.status(500).json({
+      error: 'Failed to describe table',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * API Route: Drop a DuckDB table
+ * DELETE /api/duckdb/tables/:tableName
+ */
+app.delete('/api/duckdb/tables/:tableName', async (req, res) => {
+  try {
+    const { tableName } = req.params;
+    await duckdb.dropTable(tableName);
+    res.json({ success: true, message: `Table ${tableName} dropped` });
+  } catch (error) {
+    console.error('DuckDB drop table error:', error);
+    res.status(500).json({
+      error: 'Failed to drop table',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * API Route: Configure S3 credentials
+ * POST /api/duckdb/s3-config
+ * Body: { accessKeyId, secretAccessKey, region?, endpoint?, sessionToken? }
+ */
+app.post('/api/duckdb/s3-config', async (req, res) => {
+  try {
+    const config = req.body;
+    await duckdb.configureS3(config);
+    res.json({ success: true, message: 'S3 configuration updated' });
+  } catch (error) {
+    console.error('DuckDB S3 config error:', error);
+    res.status(500).json({
+      error: 'Failed to configure S3',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * API Route: Get DuckDB status
+ * GET /api/duckdb/status
+ */
+app.get('/api/duckdb/status', async (req, res) => {
+  try {
+    const tables = await duckdb.listTables();
+    res.json({
+      success: true,
+      initialized: duckdb.initialized,
+      dbPath: duckdb.dbPath,
+      tableCount: tables.length
+    });
+  } catch (error) {
+    res.json({
+      success: false,
+      initialized: duckdb.initialized,
+      error: error.message
+    });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`ES2Tabular server running on http://localhost:${PORT}`);
   console.log(`Kibana: ${kibanaClient.baseUrl}`);
   console.log(`Data directory: ${DATA_DIR}`);
+  console.log(`DuckDB database: ${path.join(DATA_DIR, 'es2tabular.duckdb')}`);
 });

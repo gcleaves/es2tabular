@@ -24,7 +24,8 @@
         }
 
         .container {
-            max-width: 1600px;
+            width: 100%;
+            max-width: 1800px;
             margin: 0 auto;
             flex: 1;
             display: flex;
@@ -33,12 +34,20 @@
 
         .main-layout {
             display: grid;
-            grid-template-columns: 4fr 2fr ;
             gap: 20px;
             align-items: stretch;
             width: 100%;
             flex: 1;
             min-height: 0;
+            transition: grid-template-columns 0.3s ease;
+        }
+
+        .main-layout.sidebar-expanded {
+            grid-template-columns: 1fr 400px;
+        }
+
+        .main-layout.sidebar-collapsed {
+            grid-template-columns: 1fr 50px;
         }
 
         .card {
@@ -157,6 +166,53 @@
             overflow-y: auto;
             display: flex;
             flex-direction: column;
+        }
+
+        .files-column.collapsed .card {
+            padding: 12px;
+        }
+
+        .files-column.collapsed .file-list,
+        .files-column.collapsed .files-header-content {
+            display: none;
+        }
+
+        .files-column.collapsed .sidebar-toggle {
+            justify-content: center;
+        }
+
+        .sidebar-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+
+        .sidebar-toggle h2 {
+            margin: 0;
+        }
+
+        .toggle-btn {
+            width: 32px;
+            height: 32px;
+            padding: 0;
+            border: none;
+            background: #f0f0f0;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        .toggle-btn:hover {
+            background: #e0e0e0;
+        }
+
+        .collapsed .toggle-btn {
+            transform: rotate(180deg);
         }
 
         h1 {
@@ -611,7 +667,7 @@
             </div>
         </div>
 
-        <div class="main-layout">
+        <div class="main-layout" :class="sidebarCollapsed ? 'sidebar-collapsed' : 'sidebar-expanded'">
             <!-- Left Column: Query Form -->
             <div class="query-column">
                 <div class="card">
@@ -710,7 +766,7 @@
                                     <label>Load CSV File into DuckDB</label>
                                     <div style="display: flex; gap: 10px;">
                                         <select x-model="selectedCsvFile" style="flex: 1;">
-                                            <option value="">Select a CSV file...</option>
+                                            <option value="">Select a local CSV file...</option>
                                             <template x-for="file in csvFiles" :key="file.filename">
                                                 <option :value="file.filename" x-text="file.filename"></option>
                                             </template>
@@ -725,11 +781,39 @@
                                     </div>
                                 </div>
 
+                                <!-- Load from URL (S3, HTTP) -->
+                                <div class="form-group">
+                                    <label>Or Load from URL (S3, HTTP/HTTPS)</label>
+                                    <div style="display: flex; gap: 10px;">
+                                        <input 
+                                            type="text" 
+                                            x-model="externalCsvUrl" 
+                                            placeholder="s3://bucket/path/file.csv or https://..."
+                                            style="flex: 1; font-family: monospace;"
+                                        >
+                                        <button 
+                                            @click="loadExternalCsv" 
+                                            class="btn-secondary btn-small"
+                                            :disabled="!externalCsvUrl || duckdbStatus !== 'ready'"
+                                        >
+                                            Load URL
+                                        </button>
+                                    </div>
+                                    <small style="color: #666; font-size: 11px; margin-top: 4px; display: block;">
+                                        For S3, configure credentials via environment variables or the S3 config endpoint.
+                                    </small>
+                                </div>
+
                                 <!-- Loaded tables -->
                                 <div x-show="loadedTables.length > 0" class="loaded-tables">
-                                    <h4>Loaded Tables</h4>
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                        <h4 style="margin: 0;">Tables in Database</h4>
+                                        <button @click="refreshTables" class="btn-outline btn-small" style="padding: 4px 8px; font-size: 12px;">
+                                            Refresh
+                                        </button>
+                                    </div>
                                     <template x-for="table in loadedTables" :key="table">
-                                        <span class="table-chip" x-text="table"></span>
+                                        <span class="table-chip" x-text="table" style="cursor: pointer;" @click="insertTableName(table)" title="Click to insert into query"></span>
                                     </template>
                                 </div>
 
@@ -808,10 +892,21 @@
             </div>
 
             <!-- Right Column: File List -->
-            <div class="files-column">
+            <div class="files-column" :class="sidebarCollapsed ? 'collapsed' : 'expanded'">
                 <div class="card">
-                    <h2>Recent Files</h2>
-                    <button @click="loadFiles" class="btn-primary btn-small" style="margin-bottom: 15px;">Refresh</button>
+                    <div class="sidebar-toggle">
+                        <h2 x-show="!sidebarCollapsed">Recent Files</h2>
+                        <button 
+                            @click="sidebarCollapsed = !sidebarCollapsed" 
+                            class="toggle-btn"
+                            :title="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+                        >
+                            <span x-text="sidebarCollapsed ? '◀' : '▶'"></span>
+                        </button>
+                    </div>
+                    <div class="files-header-content">
+                        <button @click="loadFiles" class="btn-primary btn-small" style="margin-bottom: 15px;">Refresh</button>
+                    </div>
                     
                     <div class="file-list">
                         <template x-for="file in files" :key="file.filename">
@@ -846,72 +941,81 @@
         </div>
     </div>
 
-    <script type="module">
-        // DuckDB-WASM imports
-        import * as duckdb from 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/+esm';
-
-        // Store DuckDB instance globally
-        let db = null;
-        let conn = null;
-
-        // Initialize DuckDB
-        async function initDuckDB() {
-            try {
-                const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
-                const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
-                
-                const worker_url = URL.createObjectURL(
-                    new Blob([`importScripts("${bundle.mainWorker}");`], { type: 'text/javascript' })
-                );
-                
-                const worker = new Worker(worker_url);
-                const logger = new duckdb.ConsoleLogger();
-                db = new duckdb.AsyncDuckDB(logger, worker);
-                await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
-                URL.revokeObjectURL(worker_url);
-                
-                conn = await db.connect();
-                console.log('DuckDB initialized successfully');
-                return true;
-            } catch (error) {
-                console.error('Failed to initialize DuckDB:', error);
-                throw error;
-            }
-        }
-
-        // Execute SQL query
-        async function executeQuery(sql) {
-            if (!conn) throw new Error('DuckDB not initialized');
-            const result = await conn.query(sql);
-            return result;
-        }
-
-        // Register CSV file from URL
-        async function registerCsvFromUrl(url, tableName) {
-            if (!db || !conn) throw new Error('DuckDB not initialized');
-            
-            // Fetch the CSV content
-            const response = await fetch(url);
-            const csvContent = await response.text();
-            
-            // Register the file in DuckDB's virtual file system
-            await db.registerFileText(tableName + '.csv', csvContent);
-            
-            // Create table from CSV
-            await conn.query(`
-                CREATE OR REPLACE TABLE ${tableName} AS 
-                SELECT * FROM read_csv_auto('${tableName}.csv')
-            `);
-            
-            return tableName;
-        }
-
-        // Expose to window for Alpine.js
+    <script>
+        // Server-side DuckDB API wrapper
         window.duckdbApi = {
-            init: initDuckDB,
-            query: executeQuery,
-            registerCsv: registerCsvFromUrl,
-            isReady: () => db !== null && conn !== null
+            initialized: false,
+
+            // Check server DuckDB status
+            async init() {
+                try {
+                    const response = await fetch('/api/duckdb/status');
+                    const data = await response.json();
+                    if (data.success && data.initialized) {
+                        this.initialized = true;
+                        console.log('DuckDB server is ready');
+                        return true;
+                    }
+                    throw new Error('DuckDB server not initialized');
+                } catch (error) {
+                    console.error('Failed to connect to DuckDB server:', error);
+                    throw error;
+                }
+            },
+
+            // Execute SQL query via server
+            async query(sql) {
+                const response = await fetch('/api/duckdb/query', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sql })
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.message || 'Query failed');
+                }
+                return data;
+            },
+
+            // Load CSV into DuckDB table via server
+            async loadCsv(csvPath, tableName) {
+                const response = await fetch('/api/duckdb/load', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: csvPath, tableName })
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.message || 'Failed to load CSV');
+                }
+                return data;
+            },
+
+            // List all tables
+            async listTables() {
+                const response = await fetch('/api/duckdb/tables');
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.message || 'Failed to list tables');
+                }
+                return data.tables;
+            },
+
+            // Drop a table
+            async dropTable(tableName) {
+                const response = await fetch(`/api/duckdb/tables/${tableName}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.message || 'Failed to drop table');
+                }
+                return data;
+            },
+
+            isReady() {
+                return this.initialized;
+            }
         };
     </script>
 
@@ -932,6 +1036,9 @@
             return {
                 // Tab state
                 activeTab: 'esquery',
+                
+                // Sidebar state
+                sidebarCollapsed: false,
 
                 // ES Query state
                 index: '',
@@ -949,8 +1056,9 @@
                 duckdbMessage: '',
                 duckdbMessageType: 'info',
                 selectedCsvFile: '',
+                externalCsvUrl: '',
                 loadedTables: [],
-                sqlQuery: 'SELECT * FROM data LIMIT 100',
+                sqlQuery: '-- Tables persist across sessions in data/es2tabular.duckdb\n-- Load a CSV file or enter a query below\nSELECT * FROM data LIMIT 100',
                 sqlResults: null,
                 sqlColumns: [],
                 sqlExecuting: false,
@@ -981,10 +1089,21 @@
                     try {
                         await window.duckdbApi.init();
                         this.duckdbStatus = 'ready';
-                        this.showDuckDBMessage('DuckDB initialized successfully', 'success');
+                        // Load existing tables from the persistent database
+                        await this.refreshTables();
+                        this.showDuckDBMessage('DuckDB connected (server-side, persistent)', 'success');
                     } catch (error) {
                         this.duckdbStatus = 'error';
-                        this.showDuckDBMessage('Failed to initialize DuckDB: ' + error.message, 'error');
+                        this.showDuckDBMessage('Failed to connect to DuckDB: ' + error.message, 'error');
+                    }
+                },
+
+                async refreshTables() {
+                    try {
+                        const tables = await window.duckdbApi.listTables();
+                        this.loadedTables = tables.map(t => t.name);
+                    } catch (error) {
+                        console.error('Failed to refresh tables:', error);
                     }
                 },
 
@@ -993,33 +1112,66 @@
                     await this.loadCsvIntoDuckDB(this.selectedCsvFile);
                 },
 
+                async loadExternalCsv() {
+                    if (!this.externalCsvUrl) return;
+                    if (this.duckdbStatus !== 'ready') {
+                        await this.initDuckDB();
+                    }
+
+                    try {
+                        // Extract a table name from the URL
+                        const urlPath = this.externalCsvUrl.split('/').pop().split('?')[0];
+                        const tableName = urlPath.replace('.csv', '').replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase() || 'external_data';
+                        
+                        const result = await window.duckdbApi.loadCsv(this.externalCsvUrl, tableName);
+                        
+                        if (!this.loadedTables.includes(result.tableName)) {
+                            this.loadedTables.push(result.tableName);
+                        }
+
+                        this.sqlQuery = `SELECT * FROM ${result.tableName} LIMIT 100`;
+                        if (monacoSqlEditor) {
+                            monacoSqlEditor.setValue(this.sqlQuery);
+                        }
+
+                        this.showDuckDBMessage(`Loaded from URL as table "${result.tableName}" (${result.rowCount} rows)`, 'success');
+                        this.externalCsvUrl = '';
+                    } catch (error) {
+                        this.showDuckDBMessage('Failed to load from URL: ' + error.message, 'error');
+                    }
+                },
+
+                insertTableName(tableName) {
+                    if (monacoSqlEditor) {
+                        const position = monacoSqlEditor.getPosition();
+                        monacoSqlEditor.executeEdits('insert-table', [{
+                            range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+                            text: tableName
+                        }]);
+                        monacoSqlEditor.focus();
+                    }
+                },
+
                 async loadCsvIntoDuckDB(filename) {
                     if (this.duckdbStatus !== 'ready') {
                         await this.initDuckDB();
                     }
 
                     try {
-                        const url = `/api/files/${filename}`;
-                        // Create a valid SQL table name from filename
-                        const tableName = filename
-                            .replace('.csv', '')
-                            .replace(/[^a-zA-Z0-9_]/g, '_')
-                            .replace(/^_+|_+$/g, '')
-                            .toLowerCase();
+                        // Server-side: just pass the filename, the server resolves the path
+                        const result = await window.duckdbApi.loadCsv(filename);
                         
-                        await window.duckdbApi.registerCsv(url, tableName);
-                        
-                        if (!this.loadedTables.includes(tableName)) {
-                            this.loadedTables.push(tableName);
+                        if (!this.loadedTables.includes(result.tableName)) {
+                            this.loadedTables.push(result.tableName);
                         }
 
                         // Update SQL query with the new table name
-                        this.sqlQuery = `SELECT * FROM ${tableName} LIMIT 100`;
+                        this.sqlQuery = `SELECT * FROM ${result.tableName} LIMIT 100`;
                         if (monacoSqlEditor) {
                             monacoSqlEditor.setValue(this.sqlQuery);
                         }
 
-                        this.showDuckDBMessage(`Loaded ${filename} as table "${tableName}"`, 'success');
+                        this.showDuckDBMessage(`Loaded ${filename} as table "${result.tableName}" (${result.rowCount} rows)`, 'success');
                         
                         // Switch to DuckDB tab
                         this.activeTab = 'duckdb';
@@ -1043,22 +1195,12 @@
                         const queryText = monacoSqlEditor ? monacoSqlEditor.getValue() : this.sqlQuery;
                         this.sqlQuery = queryText;
 
-                        const startTime = performance.now();
+                        // Server returns { columns, rows, rowCount, executionTime }
                         const result = await window.duckdbApi.query(queryText);
-                        this.sqlExecutionTime = Math.round(performance.now() - startTime);
-
-                        // Convert Arrow table to array of objects
-                        const rows = result.toArray();
-                        this.sqlColumns = result.schema.fields.map(f => f.name);
                         
-                        // Convert each row to a plain object
-                        this.sqlResults = rows.map(row => {
-                            const obj = {};
-                            this.sqlColumns.forEach(col => {
-                                obj[col] = row[col];
-                            });
-                            return obj;
-                        });
+                        this.sqlExecutionTime = result.executionTime;
+                        this.sqlColumns = result.columns;
+                        this.sqlResults = result.rows;
 
                     } catch (error) {
                         this.showDuckDBMessage('Query error: ' + error.message, 'error');
@@ -1226,6 +1368,14 @@
                 init() {
                     this.loadFiles();
                     this.initMonacoEditor();
+                    
+                    // Watch sidebar state to refresh Monaco editor layouts
+                    this.$watch('sidebarCollapsed', () => {
+                        setTimeout(() => {
+                            if (monacoEditor) monacoEditor.layout();
+                            if (monacoSqlEditor) monacoSqlEditor.layout();
+                        }, 350); // Wait for CSS transition to complete
+                    });
                 },
 
                 initMonacoEditor() {
