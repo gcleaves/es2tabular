@@ -1,0 +1,9 @@
+{
+  "watch": ["server.js", "index.js", "lib", "public"],
+  "ignore": ["data/**/*", "example/**/*", "node_modules/**/*", "*.csv", "*.json"],
+  "ext": "js,json,html,css",
+  "exec": "node server.js",
+  "env": {
+    "NODE_ENV": "development"
+  }
+}

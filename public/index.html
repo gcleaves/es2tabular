@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ES2Tabular - Elasticsearch Query to CSV Converter</title>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 4fr 2fr ;
+            gap: 20px;
+            align-items: stretch;
+            width: 100%;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+        }
+
+        .header-card {
+            padding: 15px 30px;
+            margin-bottom: 20px;
+        }
+
+        .query-column {
+            min-width: 0; /* Allows grid item to shrink below content size */
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            max-height: 90%;
+        }
+
+        .query-column .card {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .query-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            overflow-y: auto;
+        }
+
+        .files-column {
+            position: sticky;
+            top: 20px;
+            max-height: calc(100vh - 40px);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 5px;
+            font-size: 1.5em;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 0;
+            font-size: 0.9em;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        input[type="text"],
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            min-height: 200px;
+            resize: vertical;
+            font-size: 13px;
+            line-height: 1.5;
+            flex: 1;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group:has(textarea) {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #48bb78;
+            color: white;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: #38a169;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(72, 187, 120, 0.4);
+        }
+
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: #e53e3e;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+
+        .alert-success {
+            background: #c6f6d5;
+            color: #22543d;
+            border: 1px solid #9ae6b4;
+        }
+
+        .alert-error {
+            background: #fed7d7;
+            color: #742a2a;
+            border: 1px solid #fc8181;
+        }
+
+        .alert-info {
+            background: #bee3f8;
+            color: #2c5282;
+            border: 1px solid #90cdf4;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .file-list {
+            margin-top: 20px;
+            max-height: calc(100vh - 200px);
+            overflow-y: auto;
+        }
+
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: #f7fafc;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+
+        .file-info {
+            flex: 1;
+        }
+
+        .file-name {
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .file-meta {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 14px;
+        }
+
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .stat {
+            flex: 1;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        /* Responsive design */
+        @media (max-width: 1024px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .files-column {
+                position: static;
+                max-height: none;
+            }
+
+            .file-list {
+                max-height: none;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                max-width: 100%;
+                padding: 0 10px;
+            }
+
+            .card {
+                padding: 20px;
+            }
+
+            textarea {
+                min-height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+        <div class="container" x-data="app()">
+        <div class="card header-card">
+            <h1>ES2Tabular</h1>
+            <p class="subtitle">Convert Elasticsearch aggregation queries to CSV format</p>
+        </div>
+
+        <div class="main-layout">
+            <!-- Left Column: Query Form -->
+            <div class="query-column">
+                <div class="card">
+                    <div class="query-content">
+            <!-- Alerts -->
+            <div x-show="message" 
+                 x-transition
+                 :class="messageType === 'error' ? 'alert alert-error' : messageType === 'success' ? 'alert alert-success' : 'alert alert-info'"
+                 x-text="message">
+            </div>
+
+            <!-- Query Form -->
+            <form @submit.prevent="executeQuery">
+                <div class="form-group">
+                    <label for="index">Elasticsearch Index Pattern</label>
+                    <input 
+                        type="text" 
+                        id="index" 
+                        x-model="index" 
+                        placeholder="e.g., my-index-* or veriprobe-202512*"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="query">Elasticsearch Query (JSON)</label>
+                    <textarea 
+                        id="query" 
+                        x-model="query" 
+                        placeholder='{"size": 0, "aggs": {...}}'
+                        required
+                    ></textarea>
+                </div>
+
+                <div class="button-group">
+                    <button type="submit" class="btn-primary" :disabled="loading">
+                        <span x-show="loading" class="loading"></span>
+                        <span x-show="!loading">Execute Query</span>
+                        <span x-show="loading">Executing...</span>
+                    </button>
+                </div>
+            </form>
+
+            <!-- Query Results -->
+            <div x-show="queryResult" class="stats">
+                <div class="stat">
+                    <div class="stat-label">Hits</div>
+                    <div class="stat-value" x-text="queryResult.hits"></div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Total</div>
+                    <div class="stat-value" x-text="queryResult.total"></div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Has Aggregations</div>
+                    <div class="stat-value" x-text="queryResult.hasAggregations ? 'Yes' : 'No'"></div>
+                </div>
+            </div>
+
+            <!-- Convert to CSV (hidden since it's automatic now, but kept for manual conversion if needed) -->
+            <div x-show="false && queryResult && queryResult.hasAggregations && !csvResult" class="button-group" style="margin-top: 20px;">
+                <button @click="convertToCSV" class="btn-secondary" :disabled="loading || converting">
+                    <span x-show="converting" class="loading"></span>
+                    <span x-show="!converting">Convert to CSV</span>
+                    <span x-show="converting">Converting...</span>
+                </button>
+            </div>
+
+            <!-- CSV Results -->
+            <div x-show="csvResult" class="stats">
+                <div class="stat">
+                    <div class="stat-label">Rows</div>
+                    <div class="stat-value" x-text="csvResult.rows"></div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Columns</div>
+                    <div class="stat-value" x-text="csvResult.columns.length"></div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Columns</div>
+                    <div class="stat-value" style="font-size: 12px;" x-text="csvResult.columns.join(', ')"></div>
+                </div>
+            </div>
+
+            <!-- Download CSV -->
+            <div x-show="csvResult" class="button-group" style="margin-top: 20px;">
+                <a :href="csvResult.csvFilepath" download class="btn-primary" style="text-decoration: none; display: inline-block;">
+                    Download CSV
+                </a>
+            </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: File List -->
+            <div class="files-column">
+                <div class="card">
+                    <h2>Recent Files</h2>
+                    <button @click="loadFiles" class="btn-primary btn-small" style="margin-bottom: 15px;">Refresh</button>
+                    
+                    <div class="file-list">
+                        <template x-for="file in files" :key="file.filename">
+                            <div class="file-item">
+                                <div class="file-info">
+                                    <div class="file-name" x-text="file.filename"></div>
+                                    <div class="file-meta">
+                                        <span x-text="formatSize(file.size)"></span> • 
+                                        <span x-text="formatDate(file.created)"></span>
+                                    </div>
+                                </div>
+                                <div class="file-actions">
+                                    <a :href="file.url" download class="btn-primary btn-small" style="text-decoration: none;">Download</a>
+                                    <button @click="deleteFile(file.filename)" class="btn-danger btn-small">Delete</button>
+                                </div>
+                            </div>
+                        </template>
+                        <div x-show="files.length === 0" style="text-align: center; padding: 20px; color: #666;">
+                            No files yet. Execute a query to get started.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function app() {
+            return {
+                index: '',
+                query: '{\n  "size": 0,\n  "aggs": {\n    "my_aggregation": {\n      "terms": {\n        "field": "field_name",\n        "size": 10\n      }\n    }\n  }\n}',
+                loading: false,
+                converting: false,
+                message: '',
+                messageType: 'info',
+                queryResult: null,
+                csvResult: null,
+                files: [],
+
+                async executeQuery() {
+                    this.loading = true;
+                    this.message = '';
+                    this.queryResult = null;
+                    this.csvResult = null;
+
+                    try {
+                        const queryObj = JSON.parse(this.query);
+                        
+                        const response = await fetch('/api/query', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                index: this.index,
+                                query: queryObj,
+                            }),
+                        });
+
+                        const data = await response.json();
+
+                        if (!response.ok) {
+                            throw new Error(data.error || 'Failed to execute query');
+                        }
+
+                        this.queryResult = data;
+                        this.showMessage('Query executed successfully!', 'success');
+                        await this.loadFiles();
+                        
+                        // Automatically convert to CSV if aggregations are present
+                        if (data.hasAggregations) {
+                            await this.convertToCSV();
+                        }
+                    } catch (error) {
+                        this.showMessage(error.message, 'error');
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                async convertToCSV() {
+                    if (!this.queryResult || !this.queryResult.filename) {
+                        this.showMessage('Please execute a query first', 'error');
+                        return;
+                    }
+
+                    // Don't show converting state if it's automatic (to avoid flickering)
+                    const isAutomatic = this.csvResult === null && this.queryResult.hasAggregations;
+                    if (!isAutomatic) {
+                        this.converting = true;
+                    }
+                    this.csvResult = null;
+
+                    try {
+                        const response = await fetch('/api/convert', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                filename: this.queryResult.filename,
+                            }),
+                        });
+
+                        const data = await response.json();
+
+                        if (!response.ok) {
+                            throw new Error(data.error || 'Failed to convert to CSV');
+                        }
+
+                        this.csvResult = data;
+                        if (!isAutomatic) {
+                            this.showMessage('Successfully converted to CSV!', 'success');
+                        } else {
+                            // Update message to reflect automatic conversion
+                            this.showMessage('Query executed and converted to CSV successfully!', 'success');
+                        }
+                        await this.loadFiles();
+                    } catch (error) {
+                        this.showMessage(error.message, 'error');
+                    } finally {
+                        if (!isAutomatic) {
+                            this.converting = false;
+                        }
+                    }
+                },
+
+                async loadFiles() {
+                    try {
+                        const response = await fetch('/api/files');
+                        const data = await response.json();
+                        this.files = data.files || [];
+                    } catch (error) {
+                        console.error('Error loading files:', error);
+                    }
+                },
+
+                async deleteFile(filename) {
+                    if (!confirm(`Delete ${filename}?`)) {
+                        return;
+                    }
+
+                    try {
+                        const response = await fetch(`/api/files/${filename}`, {
+                            method: 'DELETE',
+                        });
+
+                        if (!response.ok) {
+                            throw new Error('Failed to delete file');
+                        }
+
+                        this.showMessage('File deleted', 'success');
+                        await this.loadFiles();
+                    } catch (error) {
+                        this.showMessage(error.message, 'error');
+                    }
+                },
+
+                showMessage(text, type = 'info') {
+                    this.message = text;
+                    this.messageType = type;
+                    if (type === 'success' || type === 'info') {
+                        setTimeout(() => {
+                            this.message = '';
+                        }, 5000);
+                    }
+                },
+
+                formatSize(bytes) {
+                    if (bytes < 1024) return bytes + ' B';
+                    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+                    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+                },
+
+                formatDate(dateString) {
+                    const date = new Date(dateString);
+                    return date.toLocaleString();
+                },
+
+                init() {
+                    this.loadFiles();
+                }
+            }
+        }
+    </script>
+</body>
+</html>
