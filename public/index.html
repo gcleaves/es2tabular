@@ -51,10 +51,79 @@
         .header-card {
             padding: 15px 30px;
             margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-left h1 {
+            color: #333;
+            margin-bottom: 5px;
+            font-size: 1.5em;
+        }
+
+        .header-left .subtitle {
+            color: #666;
+            margin-bottom: 0;
+            font-size: 0.9em;
+        }
+
+        /* Tab Navigation */
+        .tab-nav {
+            display: flex;
+            gap: 5px;
+        }
+
+        .tab-btn {
+            padding: 10px 20px;
+            border: none;
+            background: transparent;
+            color: #666;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        .tab-btn:hover {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+        }
+
+        .tab-btn.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .tab-btn.active:hover {
+            background: #5568d3;
+        }
+
+        .duckdb-status {
+            font-size: 12px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            margin-left: 8px;
+        }
+
+        .duckdb-status.loading {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .duckdb-status.ready {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .duckdb-status.error {
+            background: #fee2e2;
+            color: #991b1b;
         }
 
         .query-column {
-            min-width: 0; /* Allows grid item to shrink below content size */
+            min-width: 0;
             display: flex;
             flex-direction: column;
             min-height: 0;
@@ -69,12 +138,16 @@
             overflow: hidden;
         }
 
-        .query-content {
+        .tab-content {
+            display: none;
             flex: 1;
-            display: flex;
             flex-direction: column;
             min-height: 0;
             overflow-y: auto;
+        }
+
+        .tab-content.active {
+            display: flex;
         }
 
         .files-column {
@@ -84,7 +157,6 @@
             overflow-y: auto;
             display: flex;
             flex-direction: column;
-            
         }
 
         h1 {
@@ -111,7 +183,8 @@
         }
 
         input[type="text"],
-        textarea {
+        textarea,
+        select {
             width: 100%;
             padding: 12px;
             border: 2px solid #e0e0e0;
@@ -121,8 +194,14 @@
             transition: border-color 0.3s;
         }
 
+        select {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            cursor: pointer;
+        }
+
         input[type="text"]:focus,
-        textarea:focus {
+        textarea:focus,
+        select:focus {
             outline: none;
             border-color: #667eea;
         }
@@ -135,18 +214,27 @@
             flex: 1;
         }
 
-        /* Monaco Editor container */
-        #monaco-editor-container {
+        /* Monaco Editor containers */
+        .monaco-container {
             width: 100%;
             flex: 1;
-            min-height: 400px;
+            min-height: 300px;
             border: 2px solid #e0e0e0;
             border-radius: 6px;
             overflow: hidden;
         }
 
-        #monaco-editor-container:focus-within {
+        .monaco-container:focus-within {
             border-color: #667eea;
+        }
+
+        #monaco-editor-container {
+            min-height: 400px;
+        }
+
+        #monaco-sql-container {
+            min-height: 200px;
+            flex: 0 0 auto;
         }
 
         form {
@@ -220,6 +308,17 @@
             background: #e53e3e;
         }
 
+        .btn-outline {
+            background: transparent;
+            border: 2px solid #667eea;
+            color: #667eea;
+        }
+
+        .btn-outline:hover:not(:disabled) {
+            background: #667eea;
+            color: white;
+        }
+
         .alert {
             padding: 15px;
             border-radius: 6px;
@@ -252,6 +351,11 @@
             border-radius: 50%;
             border-top-color: white;
             animation: spin 1s ease-in-out infinite;
+        }
+
+        .loading-dark {
+            border: 3px solid rgba(0, 0, 0, 0.1);
+            border-top-color: #667eea;
         }
 
         @keyframes spin {
@@ -323,6 +427,113 @@
             color: #333;
         }
 
+        /* Results Table */
+        .results-container {
+            flex: 1;
+            min-height: 200px;
+            margin-top: 20px;
+            overflow: auto;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+        }
+
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .results-table th {
+            background: #f7fafc;
+            padding: 10px 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #e0e0e0;
+            position: sticky;
+            top: 0;
+            white-space: nowrap;
+        }
+
+        .results-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #e0e0e0;
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .results-table tr:hover td {
+            background: #f7fafc;
+        }
+
+        .results-table tr:nth-child(even) td {
+            background: #fafafa;
+        }
+
+        .results-table tr:nth-child(even):hover td {
+            background: #f0f0f0;
+        }
+
+        .results-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            color: #666;
+            font-size: 13px;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        /* DuckDB specific styles */
+        .sql-section {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .sql-editor-section {
+            flex: 0 0 auto;
+        }
+
+        .sql-results-section {
+            flex: 1;
+            min-height: 200px;
+            display: flex;
+            flex-direction: column;
+            margin-top: 20px;
+        }
+
+        .loaded-tables {
+            margin-top: 15px;
+            padding: 10px;
+            background: #f7fafc;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        .loaded-tables h4 {
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .table-chip {
+            display: inline-block;
+            padding: 4px 10px;
+            background: #667eea;
+            color: white;
+            border-radius: 12px;
+            font-size: 12px;
+            margin: 2px 4px 2px 0;
+        }
+
         /* Responsive design */
         @media (max-width: 1024px) {
             .main-layout {
@@ -339,7 +550,7 @@
             }
         }
 
-            @media (max-width: 768px) {
+        @media (max-width: 768px) {
             .container {
                 max-width: 100%;
                 padding: 0 10px;
@@ -349,109 +560,249 @@
                 padding: 20px;
             }
 
+            .header-card {
+                flex-direction: column;
+                gap: 15px;
+            }
+
             textarea {
                 min-height: 300px;
             }
 
-            #monaco-editor-container {
-                min-height: 300px;
+            .monaco-container {
+                min-height: 200px;
+            }
+
+            .tab-nav {
+                width: 100%;
+                justify-content: center;
             }
         }
     </style>
 </head>
 <body>
-        <div class="container" x-data="app()">
+    <div class="container" x-data="app()">
         <div class="card header-card">
-            <h1>ES2Tabular</h1>
-            <p class="subtitle">Convert Elasticsearch aggregation queries to CSV format</p>
+            <div class="header-left">
+                <h1>ES2Tabular</h1>
+                <p class="subtitle">Convert Elasticsearch aggregation queries to CSV format</p>
+            </div>
+            <div class="tab-nav">
+                <button 
+                    class="tab-btn" 
+                    :class="{ active: activeTab === 'esquery' }"
+                    @click="switchTab('esquery')"
+                >
+                    ES Query
+                </button>
+                <button 
+                    class="tab-btn" 
+                    :class="{ active: activeTab === 'duckdb' }"
+                    @click="switchTab('duckdb')"
+                >
+                    DuckDB SQL
+                    <span 
+                        class="duckdb-status"
+                        :class="{ 'loading': duckdbStatus === 'loading', 'ready': duckdbStatus === 'ready', 'error': duckdbStatus === 'error' }"
+                        x-text="duckdbStatus === 'loading' ? 'Loading...' : duckdbStatus === 'ready' ? 'Ready' : duckdbStatus === 'error' ? 'Error' : ''"
+                        x-show="duckdbStatus !== 'idle'"
+                    ></span>
+                </button>
+            </div>
         </div>
 
         <div class="main-layout">
             <!-- Left Column: Query Form -->
             <div class="query-column">
                 <div class="card">
-                    <div class="query-content">
-            <!-- Alerts -->
-            <div x-show="message" 
-                 x-transition
-                 :class="messageType === 'error' ? 'alert alert-error' : messageType === 'success' ? 'alert alert-success' : 'alert alert-info'"
-                 x-text="message">
-            </div>
+                    <!-- ES Query Tab -->
+                    <div class="tab-content" :class="{ active: activeTab === 'esquery' }">
+                        <!-- Alerts -->
+                        <div x-show="message && activeTab === 'esquery'" 
+                             x-transition
+                             :class="messageType === 'error' ? 'alert alert-error' : messageType === 'success' ? 'alert alert-success' : 'alert alert-info'"
+                             x-text="message">
+                        </div>
 
-            <!-- Query Form -->
-            <form @submit.prevent="executeQuery">
-                <div class="form-group">
-                    <label for="index">Elasticsearch Index Pattern</label>
-                    <input 
-                        type="text" 
-                        id="index" 
-                        x-model="index" 
-                        placeholder="e.g., my-index-* or veriprobe-202512*"
-                        required
-                    >
-                </div>
+                        <!-- Query Form -->
+                        <form @submit.prevent="executeQuery">
+                            <div class="form-group">
+                                <label for="index">Elasticsearch Index Pattern</label>
+                                <input 
+                                    type="text" 
+                                    id="index" 
+                                    x-model="index" 
+                                    placeholder="e.g., my-index-* or veriprobe-202512*"
+                                    required
+                                >
+                            </div>
 
-                <div class="form-group">
-                    <label for="query">Elasticsearch Query (JSON)</label>
-                    <div id="monaco-editor-container"></div>
-                </div>
+                            <div class="form-group" style="flex: 1; display: flex; flex-direction: column;">
+                                <label for="query">Elasticsearch Query (JSON)</label>
+                                <div id="monaco-editor-container" class="monaco-container"></div>
+                            </div>
 
-                <div class="button-group">
-                    <button type="submit" class="btn-primary" :disabled="loading">
-                        <span x-show="loading" class="loading"></span>
-                        <span x-show="!loading">Execute Query</span>
-                        <span x-show="loading">Executing...</span>
-                    </button>
-                </div>
-            </form>
+                            <div class="button-group">
+                                <button type="submit" class="btn-primary" :disabled="loading">
+                                    <span x-show="loading" class="loading"></span>
+                                    <span x-show="!loading">Execute Query</span>
+                                    <span x-show="loading">Executing...</span>
+                                </button>
+                            </div>
+                        </form>
 
-            <!-- Query Results -->
-            <div x-show="queryResult" class="stats">
-                <div class="stat">
-                    <div class="stat-label">Hits</div>
-                    <div class="stat-value" x-text="queryResult.hits"></div>
-                </div>
-                <div class="stat">
-                    <div class="stat-label">Total</div>
-                    <div class="stat-value" x-text="queryResult.total"></div>
-                </div>
-                <div class="stat">
-                    <div class="stat-label">Has Aggregations</div>
-                    <div class="stat-value" x-text="queryResult.hasAggregations ? 'Yes' : 'No'"></div>
-                </div>
-            </div>
+                        <!-- Query Results -->
+                        <div x-show="queryResult" class="stats">
+                            <div class="stat">
+                                <div class="stat-label">Hits</div>
+                                <div class="stat-value" x-text="queryResult.hits"></div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-label">Total</div>
+                                <div class="stat-value" x-text="queryResult.total"></div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-label">Has Aggregations</div>
+                                <div class="stat-value" x-text="queryResult.hasAggregations ? 'Yes' : 'No'"></div>
+                            </div>
+                        </div>
 
-            <!-- Convert to CSV (hidden since it's automatic now, but kept for manual conversion if needed) -->
-            <div x-show="false && queryResult && queryResult.hasAggregations && !csvResult" class="button-group" style="margin-top: 20px;">
-                <button @click="convertToCSV" class="btn-secondary" :disabled="loading || converting">
-                    <span x-show="converting" class="loading"></span>
-                    <span x-show="!converting">Convert to CSV</span>
-                    <span x-show="converting">Converting...</span>
-                </button>
-            </div>
+                        <!-- CSV Results -->
+                        <div x-show="csvResult" class="stats">
+                            <div class="stat">
+                                <div class="stat-label">Rows</div>
+                                <div class="stat-value" x-text="csvResult.rows"></div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-label">Columns</div>
+                                <div class="stat-value" x-text="csvResult.columns.length"></div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-label">Columns</div>
+                                <div class="stat-value" style="font-size: 12px;" x-text="csvResult.columns.join(', ')"></div>
+                            </div>
+                        </div>
 
-            <!-- CSV Results -->
-            <div x-show="csvResult" class="stats">
-                <div class="stat">
-                    <div class="stat-label">Rows</div>
-                    <div class="stat-value" x-text="csvResult.rows"></div>
-                </div>
-                <div class="stat">
-                    <div class="stat-label">Columns</div>
-                    <div class="stat-value" x-text="csvResult.columns.length"></div>
-                </div>
-                <div class="stat">
-                    <div class="stat-label">Columns</div>
-                    <div class="stat-value" style="font-size: 12px;" x-text="csvResult.columns.join(', ')"></div>
-                </div>
-            </div>
+                        <!-- Download CSV -->
+                        <div x-show="csvResult" class="button-group" style="margin-top: 20px;">
+                            <a :href="csvResult.csvFilepath" download class="btn-primary" style="text-decoration: none; display: inline-block;">
+                                Download CSV
+                            </a>
+                            <button @click="loadCsvIntoDuckDB(csvResult.csvFilename)" class="btn-secondary">
+                                Query in DuckDB
+                            </button>
+                        </div>
+                    </div>
 
-            <!-- Download CSV -->
-            <div x-show="csvResult" class="button-group" style="margin-top: 20px;">
-                <a :href="csvResult.csvFilepath" download class="btn-primary" style="text-decoration: none; display: inline-block;">
-                    Download CSV
-                </a>
-            </div>
+                    <!-- DuckDB SQL Tab -->
+                    <div class="tab-content" :class="{ active: activeTab === 'duckdb' }">
+                        <!-- Alerts -->
+                        <div x-show="duckdbMessage && activeTab === 'duckdb'" 
+                             x-transition
+                             :class="duckdbMessageType === 'error' ? 'alert alert-error' : duckdbMessageType === 'success' ? 'alert alert-success' : 'alert alert-info'"
+                             x-text="duckdbMessage">
+                        </div>
+
+                        <div class="sql-section">
+                            <!-- File selector and SQL Editor -->
+                            <div class="sql-editor-section">
+                                <div class="form-group">
+                                    <label>Load CSV File into DuckDB</label>
+                                    <div style="display: flex; gap: 10px;">
+                                        <select x-model="selectedCsvFile" style="flex: 1;">
+                                            <option value="">Select a CSV file...</option>
+                                            <template x-for="file in csvFiles" :key="file.filename">
+                                                <option :value="file.filename" x-text="file.filename"></option>
+                                            </template>
+                                        </select>
+                                        <button 
+                                            @click="loadSelectedCsv" 
+                                            class="btn-secondary btn-small"
+                                            :disabled="!selectedCsvFile || duckdbStatus !== 'ready'"
+                                        >
+                                            Load
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Loaded tables -->
+                                <div x-show="loadedTables.length > 0" class="loaded-tables">
+                                    <h4>Loaded Tables</h4>
+                                    <template x-for="table in loadedTables" :key="table">
+                                        <span class="table-chip" x-text="table"></span>
+                                    </template>
+                                </div>
+
+                                <div class="form-group" style="margin-top: 15px;">
+                                    <label>SQL Query</label>
+                                    <div id="monaco-sql-container" class="monaco-container"></div>
+                                </div>
+
+                                <div class="button-group">
+                                    <button 
+                                        @click="executeSqlQuery" 
+                                        class="btn-primary" 
+                                        :disabled="duckdbStatus !== 'ready' || sqlExecuting"
+                                    >
+                                        <span x-show="sqlExecuting" class="loading"></span>
+                                        <span x-show="!sqlExecuting">Run Query (Ctrl+Enter)</span>
+                                        <span x-show="sqlExecuting">Running...</span>
+                                    </button>
+                                    <button @click="clearResults" class="btn-outline btn-small">
+                                        Clear Results
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Results Section -->
+                            <div class="sql-results-section">
+                                <div class="results-info" x-show="sqlResults">
+                                    <span x-text="sqlResults ? `${sqlResults.length} rows returned` : ''"></span>
+                                    <span x-text="sqlExecutionTime ? `Executed in ${sqlExecutionTime}ms` : ''"></span>
+                                </div>
+                                <div class="results-container">
+                                    <template x-if="sqlResults && sqlResults.length > 0">
+                                        <table class="results-table">
+                                            <thead>
+                                                <tr>
+                                                    <template x-for="col in sqlColumns" :key="col">
+                                                        <th x-text="col"></th>
+                                                    </template>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <template x-for="(row, idx) in sqlResults" :key="idx">
+                                                    <tr>
+                                                        <template x-for="col in sqlColumns" :key="col">
+                                                            <td x-text="row[col] !== null && row[col] !== undefined ? row[col] : 'NULL'" :title="row[col]"></td>
+                                                        </template>
+                                                    </tr>
+                                                </template>
+                                            </tbody>
+                                        </table>
+                                    </template>
+                                    <template x-if="!sqlResults || sqlResults.length === 0">
+                                        <div class="no-results">
+                                            <template x-if="duckdbStatus === 'loading'">
+                                                <div>
+                                                    <div class="loading loading-dark" style="width: 40px; height: 40px; margin: 0 auto 15px;"></div>
+                                                    <p>Initializing DuckDB...</p>
+                                                </div>
+                                            </template>
+                                            <template x-if="duckdbStatus === 'ready' && !sqlResults">
+                                                <p>Load a CSV file and run a query to see results here.</p>
+                                            </template>
+                                            <template x-if="duckdbStatus === 'ready' && sqlResults && sqlResults.length === 0">
+                                                <p>Query returned no results.</p>
+                                            </template>
+                                            <template x-if="duckdbStatus === 'error'">
+                                                <p>Failed to initialize DuckDB. Please refresh the page.</p>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -473,6 +824,14 @@
                                     </div>
                                 </div>
                                 <div class="file-actions">
+                                    <button 
+                                        x-show="file.filename.endsWith('.csv')"
+                                        @click="loadCsvIntoDuckDB(file.filename)" 
+                                        class="btn-secondary btn-small"
+                                        :disabled="duckdbStatus !== 'ready'"
+                                    >
+                                        Query
+                                    </button>
                                     <a :href="file.url" download class="btn-primary btn-small" style="text-decoration: none;">Download</a>
                                     <button @click="deleteFile(file.filename)" class="btn-danger btn-small">Delete</button>
                                 </div>
@@ -487,9 +846,79 @@
         </div>
     </div>
 
+    <script type="module">
+        // DuckDB-WASM imports
+        import * as duckdb from 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/+esm';
+
+        // Store DuckDB instance globally
+        let db = null;
+        let conn = null;
+
+        // Initialize DuckDB
+        async function initDuckDB() {
+            try {
+                const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
+                const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
+                
+                const worker_url = URL.createObjectURL(
+                    new Blob([`importScripts("${bundle.mainWorker}");`], { type: 'text/javascript' })
+                );
+                
+                const worker = new Worker(worker_url);
+                const logger = new duckdb.ConsoleLogger();
+                db = new duckdb.AsyncDuckDB(logger, worker);
+                await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+                URL.revokeObjectURL(worker_url);
+                
+                conn = await db.connect();
+                console.log('DuckDB initialized successfully');
+                return true;
+            } catch (error) {
+                console.error('Failed to initialize DuckDB:', error);
+                throw error;
+            }
+        }
+
+        // Execute SQL query
+        async function executeQuery(sql) {
+            if (!conn) throw new Error('DuckDB not initialized');
+            const result = await conn.query(sql);
+            return result;
+        }
+
+        // Register CSV file from URL
+        async function registerCsvFromUrl(url, tableName) {
+            if (!db || !conn) throw new Error('DuckDB not initialized');
+            
+            // Fetch the CSV content
+            const response = await fetch(url);
+            const csvContent = await response.text();
+            
+            // Register the file in DuckDB's virtual file system
+            await db.registerFileText(tableName + '.csv', csvContent);
+            
+            // Create table from CSV
+            await conn.query(`
+                CREATE OR REPLACE TABLE ${tableName} AS 
+                SELECT * FROM read_csv_auto('${tableName}.csv')
+            `);
+            
+            return tableName;
+        }
+
+        // Expose to window for Alpine.js
+        window.duckdbApi = {
+            init: initDuckDB,
+            query: executeQuery,
+            registerCsv: registerCsvFromUrl,
+            isReady: () => db !== null && conn !== null
+        };
+    </script>
+
     <script>
         // Initialize Monaco Editor
         let monacoEditor = null;
+        let monacoSqlEditor = null;
         let monacoReady = false;
 
         require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
@@ -501,6 +930,10 @@
 
         function app() {
             return {
+                // Tab state
+                activeTab: 'esquery',
+
+                // ES Query state
                 index: '',
                 query: '{\n  "size": 0,\n  "aggs": {\n    "my_aggregation": {\n      "terms": {\n        "field": "field_name",\n        "size": 10\n      }\n    }\n  }\n}',
                 loading: false,
@@ -511,6 +944,145 @@
                 csvResult: null,
                 files: [],
 
+                // DuckDB state
+                duckdbStatus: 'idle', // idle, loading, ready, error
+                duckdbMessage: '',
+                duckdbMessageType: 'info',
+                selectedCsvFile: '',
+                loadedTables: [],
+                sqlQuery: 'SELECT * FROM data LIMIT 100',
+                sqlResults: null,
+                sqlColumns: [],
+                sqlExecuting: false,
+                sqlExecutionTime: null,
+
+                get csvFiles() {
+                    return this.files.filter(f => f.filename.endsWith('.csv'));
+                },
+
+                switchTab(tab) {
+                    this.activeTab = tab;
+                    if (tab === 'duckdb' && this.duckdbStatus === 'idle') {
+                        this.initDuckDB();
+                    }
+                    // Reinitialize Monaco editors after tab switch
+                    this.$nextTick(() => {
+                        if (tab === 'esquery' && monacoEditor) {
+                            monacoEditor.layout();
+                        }
+                        if (tab === 'duckdb') {
+                            this.initMonacoSqlEditor();
+                        }
+                    });
+                },
+
+                async initDuckDB() {
+                    this.duckdbStatus = 'loading';
+                    try {
+                        await window.duckdbApi.init();
+                        this.duckdbStatus = 'ready';
+                        this.showDuckDBMessage('DuckDB initialized successfully', 'success');
+                    } catch (error) {
+                        this.duckdbStatus = 'error';
+                        this.showDuckDBMessage('Failed to initialize DuckDB: ' + error.message, 'error');
+                    }
+                },
+
+                async loadSelectedCsv() {
+                    if (!this.selectedCsvFile) return;
+                    await this.loadCsvIntoDuckDB(this.selectedCsvFile);
+                },
+
+                async loadCsvIntoDuckDB(filename) {
+                    if (this.duckdbStatus !== 'ready') {
+                        await this.initDuckDB();
+                    }
+
+                    try {
+                        const url = `/api/files/${filename}`;
+                        // Create a valid SQL table name from filename
+                        const tableName = filename
+                            .replace('.csv', '')
+                            .replace(/[^a-zA-Z0-9_]/g, '_')
+                            .replace(/^_+|_+$/g, '')
+                            .toLowerCase();
+                        
+                        await window.duckdbApi.registerCsv(url, tableName);
+                        
+                        if (!this.loadedTables.includes(tableName)) {
+                            this.loadedTables.push(tableName);
+                        }
+
+                        // Update SQL query with the new table name
+                        this.sqlQuery = `SELECT * FROM ${tableName} LIMIT 100`;
+                        if (monacoSqlEditor) {
+                            monacoSqlEditor.setValue(this.sqlQuery);
+                        }
+
+                        this.showDuckDBMessage(`Loaded ${filename} as table "${tableName}"`, 'success');
+                        
+                        // Switch to DuckDB tab
+                        this.activeTab = 'duckdb';
+                        this.$nextTick(() => {
+                            this.initMonacoSqlEditor();
+                        });
+                    } catch (error) {
+                        this.showDuckDBMessage('Failed to load CSV: ' + error.message, 'error');
+                    }
+                },
+
+                async executeSqlQuery() {
+                    if (this.duckdbStatus !== 'ready') return;
+
+                    this.sqlExecuting = true;
+                    this.sqlResults = null;
+                    this.sqlColumns = [];
+                    this.duckdbMessage = '';
+
+                    try {
+                        const queryText = monacoSqlEditor ? monacoSqlEditor.getValue() : this.sqlQuery;
+                        this.sqlQuery = queryText;
+
+                        const startTime = performance.now();
+                        const result = await window.duckdbApi.query(queryText);
+                        this.sqlExecutionTime = Math.round(performance.now() - startTime);
+
+                        // Convert Arrow table to array of objects
+                        const rows = result.toArray();
+                        this.sqlColumns = result.schema.fields.map(f => f.name);
+                        
+                        // Convert each row to a plain object
+                        this.sqlResults = rows.map(row => {
+                            const obj = {};
+                            this.sqlColumns.forEach(col => {
+                                obj[col] = row[col];
+                            });
+                            return obj;
+                        });
+
+                    } catch (error) {
+                        this.showDuckDBMessage('Query error: ' + error.message, 'error');
+                    } finally {
+                        this.sqlExecuting = false;
+                    }
+                },
+
+                clearResults() {
+                    this.sqlResults = null;
+                    this.sqlColumns = [];
+                    this.sqlExecutionTime = null;
+                },
+
+                showDuckDBMessage(text, type = 'info') {
+                    this.duckdbMessage = text;
+                    this.duckdbMessageType = type;
+                    if (type === 'success' || type === 'info') {
+                        setTimeout(() => {
+                            this.duckdbMessage = '';
+                        }, 5000);
+                    }
+                },
+
                 async executeQuery() {
                     this.loading = true;
                     this.message = '';
@@ -518,9 +1090,8 @@
                     this.csvResult = null;
 
                     try {
-                        // Get query from Monaco editor if available, otherwise use Alpine model
                         const queryText = monacoEditor ? monacoEditor.getValue() : this.query;
-                        this.query = queryText; // Sync back to Alpine model
+                        this.query = queryText;
                         const queryObj = JSON.parse(queryText);
                         
                         const response = await fetch('/api/query', {
@@ -561,7 +1132,6 @@
                         return;
                     }
 
-                    // Don't show converting state if it's automatic (to avoid flickering)
                     const isAutomatic = this.csvResult === null && this.queryResult.hasAggregations;
                     if (!isAutomatic) {
                         this.converting = true;
@@ -589,7 +1159,6 @@
                         if (!isAutomatic) {
                             this.showMessage('Successfully converted to CSV!', 'success');
                         } else {
-                            // Update message to reflect automatic conversion
                             this.showMessage('Query executed and converted to CSV successfully!', 'success');
                         }
                         await this.loadFiles();
@@ -660,12 +1229,10 @@
                 },
 
                 initMonacoEditor() {
-                    // Wait for Monaco to be ready
                     const checkMonaco = setInterval(() => {
                         if (monacoReady && typeof monaco !== 'undefined') {
                             clearInterval(checkMonaco);
                             
-                            // Small delay to ensure DOM is ready
                             setTimeout(() => {
                                 const container = document.getElementById('monaco-editor-container');
                                 if (container && !monacoEditor) {
@@ -690,29 +1257,68 @@
                                             insertSpaces: true
                                         });
 
-                                        // Sync Monaco changes to Alpine model
                                         monacoEditor.onDidChangeModelContent(() => {
                                             this.query = monacoEditor.getValue();
                                         });
 
-                                        console.log('Monaco Editor initialized successfully');
+                                        console.log('Monaco JSON Editor initialized successfully');
                                     } catch (error) {
                                         console.error('Error initializing Monaco Editor:', error);
-                                        // Fallback: show error but don't break the app
-                                        this.showMessage('Editor initialization failed. Using textarea fallback.', 'error');
+                                        this.showMessage('Editor initialization failed.', 'error');
                                     }
                                 }
                             }, 100);
                         }
                     }, 50);
 
-                    // Timeout after 5 seconds
                     setTimeout(() => {
                         clearInterval(checkMonaco);
-                        if (!monacoEditor) {
-                            console.warn('Monaco Editor failed to load within timeout');
-                        }
                     }, 5000);
+                },
+
+                initMonacoSqlEditor() {
+                    if (!monacoReady || typeof monaco === 'undefined') return;
+                    
+                    const container = document.getElementById('monaco-sql-container');
+                    if (!container) return;
+
+                    if (monacoSqlEditor) {
+                        monacoSqlEditor.layout();
+                        return;
+                    }
+
+                    try {
+                        monacoSqlEditor = monaco.editor.create(container, {
+                            value: this.sqlQuery,
+                            language: 'sql',
+                            theme: 'vs',
+                            automaticLayout: true,
+                            minimap: { enabled: false },
+                            scrollBeyondLastLine: false,
+                            fontSize: 14,
+                            lineNumbers: 'on',
+                            roundedSelection: false,
+                            scrollbar: {
+                                verticalScrollbarSize: 10,
+                                horizontalScrollbarSize: 10
+                            },
+                            tabSize: 2,
+                            insertSpaces: true
+                        });
+
+                        monacoSqlEditor.onDidChangeModelContent(() => {
+                            this.sqlQuery = monacoSqlEditor.getValue();
+                        });
+
+                        // Add Ctrl+Enter keybinding to run query
+                        monacoSqlEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
+                            this.executeSqlQuery();
+                        });
+
+                        console.log('Monaco SQL Editor initialized successfully');
+                    } catch (error) {
+                        console.error('Error initializing Monaco SQL Editor:', error);
+                    }
                 }
             }
         }
