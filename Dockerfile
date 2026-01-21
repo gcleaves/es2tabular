@@ -14,9 +14,10 @@ FROM node:20-slim
 
 WORKDIR /app
 
-# Install dumb-init for proper signal handling
+# Install dumb-init and gosu for proper signal handling and user switching
 RUN apt-get update && apt-get install -y --no-install-recommends \
     dumb-init \
+    gosu \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user with a proper home directory
@@ -32,11 +33,12 @@ COPY server.js ./
 COPY lib/ ./lib/
 COPY public/ ./public/
 
-# Create data directory and set ownership
-RUN mkdir -p /app/data && chown -R nodejs:nodejs /app
+# Create data directory
+RUN mkdir -p /app/data
 
-# Switch to non-root user
-USER nodejs
+# Copy and setup entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Expose port
 EXPOSE 3000
@@ -47,7 +49,7 @@ ENV PORT=3000
 ENV HOME=/home/nodejs
 
 # Use dumb-init as entrypoint for proper signal handling
-ENTRYPOINT ["dumb-init", "--"]
+ENTRYPOINT ["dumb-init", "--", "docker-entrypoint.sh"]
 
 # Start the application
 CMD ["node", "server.js"]
