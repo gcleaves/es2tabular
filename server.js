@@ -217,15 +217,17 @@ router.get('/api/files', (req, res) => {
       .map(filename => {
         const filepath = path.join(DATA_DIR, filename);
         const stats = fs.statSync(filepath);
+        // Use mtime (modification time) as primary, fallback for containers where birthtime may not be reliable
+        const created = stats.birthtime && stats.birthtime.getTime() > 0 ? stats.birthtime : stats.mtime;
         return {
           filename,
           size: stats.size,
-          created: stats.birthtime,
+          created,
           modified: stats.mtime,
           url: `/api/files/${filename}`,
         };
       })
-      .sort((a, b) => b.created - a.created);
+      .sort((a, b) => new Date(b.modified) - new Date(a.modified));
 
     res.json({ files });
   } catch (error) {
@@ -256,6 +258,11 @@ router.get('/api/files/:filename', (req, res) => {
     
     res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    
+    // Prevent caching to ensure fresh downloads
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     
     const fileStream = fs.createReadStream(filepath);
     fileStream.pipe(res);

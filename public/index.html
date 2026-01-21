@@ -136,7 +136,7 @@
             display: flex;
             flex-direction: column;
             min-height: 0;
-            max-height: 90%;
+            overflow-y: auto;
         }
 
         .query-column .card {
@@ -285,7 +285,8 @@
         }
 
         #monaco-editor-container {
-            min-height: 400px;
+            min-height: 250px;
+            max-height: 50vh;
         }
 
         #monaco-sql-container {
@@ -375,6 +376,31 @@
             color: white;
         }
 
+        /* Button styled as link (for <a> tags) */
+        .btn-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-link.btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-link.btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
         .alert {
             padding: 15px;
             border-radius: 6px;
@@ -427,31 +453,43 @@
         .file-item {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            padding: 15px;
+            align-items: stretch;
+            padding: 12px;
             background: #f7fafc;
             border-radius: 6px;
             margin-bottom: 10px;
+            gap: 12px;
         }
 
         .file-info {
             flex: 1;
+            min-width: 0;
         }
 
         .file-name {
             font-weight: 500;
             color: #333;
-            margin-bottom: 5px;
+            margin-bottom: 4px;
+            word-break: break-all;
+            font-size: 13px;
         }
 
         .file-meta {
-            font-size: 12px;
+            font-size: 11px;
             color: #666;
         }
 
         .file-actions {
             display: flex;
-            gap: 10px;
+            flex-direction: column;
+            gap: 6px;
+            justify-content: center;
+        }
+
+        .file-actions .btn-small {
+            padding: 6px 10px;
+            font-size: 12px;
+            white-space: nowrap;
         }
 
         .btn-small {
@@ -606,7 +644,7 @@
             }
         }
 
-        @media (max-width: 768px) {
+            @media (max-width: 768px) {
             .container {
                 max-width: 100%;
                 padding: 0 10px;
@@ -622,16 +660,25 @@
             }
 
             textarea {
-                min-height: 300px;
+                min-height: 200px;
             }
 
             .monaco-container {
-                min-height: 200px;
+                min-height: 150px;
+                max-height: 40vh;
+            }
+
+            #monaco-editor-container {
+                min-height: 150px;
             }
 
             .tab-nav {
                 width: 100%;
                 justify-content: center;
+            }
+
+            .button-group {
+                flex-wrap: wrap;
             }
         }
     </style>
@@ -693,17 +740,16 @@
                                 >
                             </div>
 
-                            <div class="form-group" style="flex: 1; display: flex; flex-direction: column;">
+                            <div class="form-group">
                                 <label for="query">Elasticsearch Query (JSON)</label>
                                 <div id="monaco-editor-container" class="monaco-container"></div>
-                            </div>
-
-                            <div class="button-group">
-                                <button type="submit" class="btn-primary" :disabled="loading">
-                                    <span x-show="loading" class="loading"></span>
-                                    <span x-show="!loading">Execute Query</span>
-                                    <span x-show="loading">Executing...</span>
-                                </button>
+                                <div class="button-group" style="margin-top: 15px;">
+                                    <button type="submit" class="btn-primary" :disabled="loading">
+                                        <span x-show="loading" class="loading"></span>
+                                        <span x-show="!loading">Execute Query</span>
+                                        <span x-show="loading">Executing...</span>
+                                    </button>
+                                </div>
                             </div>
                         </form>
 
@@ -741,7 +787,7 @@
 
                         <!-- Download CSV -->
                         <div x-show="csvResult" class="button-group" style="margin-top: 20px;">
-                            <a :href="BASE_PATH + csvResult.csvFilepath" download class="btn-primary" style="text-decoration: none; display: inline-block;">
+                            <a :href="BASE_PATH + csvResult.csvFilepath + '?t=' + Date.now()" :download="csvResult.csvFilename" class="btn-link btn-primary">
                                 Download CSV
                             </a>
                             <button @click="loadCsvIntoDuckDB(csvResult.csvFilename)" class="btn-secondary">
@@ -927,7 +973,7 @@
                                     >
                                         Query
                                     </button>
-                                    <a :href="BASE_PATH + file.url" download class="btn-primary btn-small" style="text-decoration: none;">Download</a>
+                                    <a :href="BASE_PATH + file.url + '?t=' + Date.now()" :download="file.filename" class="btn-link btn-primary btn-small">Download</a>
                                     <button @click="deleteFile(file.filename)" class="btn-danger btn-small">Delete</button>
                                 </div>
                             </div>
