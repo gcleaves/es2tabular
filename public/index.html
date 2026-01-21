@@ -909,7 +909,7 @@
                     </div>
                     
                     <div class="file-list">
-                        <template x-for="file in files" :key="file.filename">
+                        <template x-for="file in visibleFiles" :key="file.filename">
                             <div class="file-item">
                                 <div class="file-info">
                                     <div class="file-name" x-text="file.filename"></div>
@@ -932,7 +932,7 @@
                                 </div>
                             </div>
                         </template>
-                        <div x-show="files.length === 0" style="text-align: center; padding: 20px; color: #666;">
+                        <div x-show="visibleFiles.length === 0" style="text-align: center; padding: 20px; color: #666;">
                             No files yet. Execute a query to get started.
                         </div>
                     </div>
@@ -1066,6 +1066,13 @@
 
                 get csvFiles() {
                     return this.files.filter(f => f.filename.endsWith('.csv'));
+                },
+
+                get visibleFiles() {
+                    return this.files.filter(f => 
+                        !f.filename.endsWith('.duckdb') && 
+                        !f.filename.endsWith('.duckdb.wal')
+                    );
                 },
 
                 switchTab(tab) {
