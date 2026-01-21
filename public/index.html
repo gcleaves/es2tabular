@@ -741,7 +741,7 @@
 
                         <!-- Download CSV -->
                         <div x-show="csvResult" class="button-group" style="margin-top: 20px;">
-                            <a :href="csvResult.csvFilepath" download class="btn-primary" style="text-decoration: none; display: inline-block;">
+                            <a :href="BASE_PATH + csvResult.csvFilepath" download class="btn-primary" style="text-decoration: none; display: inline-block;">
                                 Download CSV
                             </a>
                             <button @click="loadCsvIntoDuckDB(csvResult.csvFilename)" class="btn-secondary">
@@ -927,7 +927,7 @@
                                     >
                                         Query
                                     </button>
-                                    <a :href="file.url" download class="btn-primary btn-small" style="text-decoration: none;">Download</a>
+                                    <a :href="BASE_PATH + file.url" download class="btn-primary btn-small" style="text-decoration: none;">Download</a>
                                     <button @click="deleteFile(file.filename)" class="btn-danger btn-small">Delete</button>
                                 </div>
                             </div>
@@ -942,6 +942,23 @@
     </div>
 
     <script>
+        // Detect base path from current URL (for reverse proxy support)
+        const getBasePath = () => {
+            const path = window.location.pathname;
+            // If we're at /es2tabular/index.html or /es2tabular/, extract /es2tabular
+            // If we're at /index.html or /, return empty string
+            const match = path.match(/^(\/[^\/]+)(?:\/|$)/);
+            if (match && match[1] !== '/api') {
+                // Check if this looks like a base path (not a file)
+                const potentialBase = match[1];
+                if (!potentialBase.includes('.')) {
+                    return potentialBase;
+                }
+            }
+            return '';
+        };
+        const BASE_PATH = getBasePath();
+
         // Server-side DuckDB API wrapper
         window.duckdbApi = {
             initialized: false,
@@ -949,7 +966,7 @@
             // Check server DuckDB status
             async init() {
                 try {
-                    const response = await fetch('/api/duckdb/status');
+                    const response = await fetch(`${BASE_PATH}/api/duckdb/status`);
                     const data = await response.json();
                     if (data.success && data.initialized) {
                         this.initialized = true;
@@ -965,7 +982,7 @@
 
             // Execute SQL query via server
             async query(sql) {
-                const response = await fetch('/api/duckdb/query', {
+                const response = await fetch(`${BASE_PATH}/api/duckdb/query`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ sql })
@@ -979,7 +996,7 @@
 
             // Load CSV into DuckDB table via server
             async loadCsv(csvPath, tableName) {
-                const response = await fetch('/api/duckdb/load', {
+                const response = await fetch(`${BASE_PATH}/api/duckdb/load`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ path: csvPath, tableName })
@@ -993,7 +1010,7 @@
 
             // List all tables
             async listTables() {
-                const response = await fetch('/api/duckdb/tables');
+                const response = await fetch(`${BASE_PATH}/api/duckdb/tables`);
                 const data = await response.json();
                 if (!response.ok) {
                     throw new Error(data.message || 'Failed to list tables');
@@ -1003,7 +1020,7 @@
 
             // Drop a table
             async dropTable(tableName) {
-                const response = await fetch(`/api/duckdb/tables/${tableName}`, {
+                const response = await fetch(`${BASE_PATH}/api/duckdb/tables/${tableName}`, {
                     method: 'DELETE'
                 });
                 const data = await response.json();
@@ -1243,7 +1260,7 @@
                         this.query = queryText;
                         const queryObj = JSON.parse(queryText);
                         
-                        const response = await fetch('/api/query', {
+                        const response = await fetch(`${BASE_PATH}/api/query`, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -1288,7 +1305,7 @@
                     this.csvResult = null;
 
                     try {
-                        const response = await fetch('/api/convert', {
+                        const response = await fetch(`${BASE_PATH}/api/convert`, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -1322,7 +1339,7 @@
 
                 async loadFiles() {
                     try {
-                        const response = await fetch('/api/files');
+                        const response = await fetch(`${BASE_PATH}/api/files`);
                         const data = await response.json();
                         this.files = data.files || [];
                     } catch (error) {
@@ -1336,7 +1353,7 @@
                     }
 
                     try {
-                        const response = await fetch(`/api/files/${filename}`, {
+                        const response = await fetch(`${BASE_PATH}/api/files/${filename}`, {
                             method: 'DELETE',
                         });
 

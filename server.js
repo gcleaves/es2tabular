@@ -13,11 +13,14 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const BASE_PATH = process.env.BASE_PATH || '';
+
+// Create a router for all routes
+const router = express.Router();
 
 // Middleware
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
-app.use(express.static('public'));
 
 // Create data directory if it doesn't exist
 const DATA_DIR = path.join(__dirname, 'data');
@@ -46,7 +49,7 @@ const duckdb = new DuckDBService(DATA_DIR);
  * POST /api/query
  * Body: { index: string, query: object }
  */
-app.post('/api/query', async (req, res) => {
+router.post('/api/query', async (req, res) => {
   try {
     const { index, query } = req.body;
 
@@ -96,7 +99,7 @@ app.post('/api/query', async (req, res) => {
  * POST /api/convert
  * Body: { filename: string, aggregationName?: string }
  */
-app.post('/api/convert', async (req, res) => {
+router.post('/api/convert', async (req, res) => {
   try {
     const { filename, aggregationName } = req.body;
 
@@ -151,7 +154,7 @@ app.post('/api/convert', async (req, res) => {
  * API Route: Get file list
  * GET /api/files
  */
-app.get('/api/files', (req, res) => {
+router.get('/api/files', (req, res) => {
   try {
     const files = fs.readdirSync(DATA_DIR)
       .map(filename => {
@@ -181,7 +184,7 @@ app.get('/api/files', (req, res) => {
  * API Route: Download file
  * GET /api/files/:filename
  */
-app.get('/api/files/:filename', (req, res) => {
+router.get('/api/files/:filename', (req, res) => {
   try {
     const { filename } = req.params;
     const filepath = path.join(DATA_DIR, filename);
@@ -212,7 +215,7 @@ app.get('/api/files/:filename', (req, res) => {
  * API Route: Delete file
  * DELETE /api/files/:filename
  */
-app.delete('/api/files/:filename', (req, res) => {
+router.delete('/api/files/:filename', (req, res) => {
   try {
     const { filename } = req.params;
     const filepath = path.join(DATA_DIR, filename);
@@ -241,7 +244,7 @@ app.delete('/api/files/:filename', (req, res) => {
  * POST /api/duckdb/query
  * Body: { sql: string }
  */
-app.post('/api/duckdb/query', async (req, res) => {
+router.post('/api/duckdb/query', async (req, res) => {
   try {
     const { sql } = req.body;
 
@@ -275,7 +278,7 @@ app.post('/api/duckdb/query', async (req, res) => {
  * Body: { path: string, tableName?: string }
  * path can be a local filename (from data dir) or S3 URL
  */
-app.post('/api/duckdb/load', async (req, res) => {
+router.post('/api/duckdb/load', async (req, res) => {
   try {
     const { path: csvPath, tableName } = req.body;
 
@@ -315,7 +318,7 @@ app.post('/api/duckdb/load', async (req, res) => {
  * API Route: List DuckDB tables
  * GET /api/duckdb/tables
  */
-app.get('/api/duckdb/tables', async (req, res) => {
+router.get('/api/duckdb/tables', async (req, res) => {
   try {
     const tables = await duckdb.listTables();
     res.json({ success: true, tables });
@@ -332,7 +335,7 @@ app.get('/api/duckdb/tables', async (req, res) => {
  * API Route: Get table schema
  * GET /api/duckdb/tables/:tableName
  */
-app.get('/api/duckdb/tables/:tableName', async (req, res) => {
+router.get('/api/duckdb/tables/:tableName', async (req, res) => {
   try {
     const { tableName } = req.params;
     const schema = await duckdb.describeTable(tableName);
@@ -350,7 +353,7 @@ app.get('/api/duckdb/tables/:tableName', async (req, res) => {
  * API Route: Drop a DuckDB table
  * DELETE /api/duckdb/tables/:tableName
  */
-app.delete('/api/duckdb/tables/:tableName', async (req, res) => {
+router.delete('/api/duckdb/tables/:tableName', async (req, res) => {
   try {
     const { tableName } = req.params;
     await duckdb.dropTable(tableName);
@@ -369,7 +372,7 @@ app.delete('/api/duckdb/tables/:tableName', async (req, res) => {
  * POST /api/duckdb/s3-config
  * Body: { accessKeyId, secretAccessKey, region?, endpoint?, sessionToken? }
  */
-app.post('/api/duckdb/s3-config', async (req, res) => {
+router.post('/api/duckdb/s3-config', async (req, res) => {
   try {
     const config = req.body;
     await duckdb.configureS3(config);
@@ -387,7 +390,7 @@ app.post('/api/duckdb/s3-config', async (req, res) => {
  * API Route: Get DuckDB status
  * GET /api/duckdb/status
  */
-app.get('/api/duckdb/status', async (req, res) => {
+router.get('/api/duckdb/status', async (req, res) => {
   try {
     const tables = await duckdb.listTables();
     res.json({
@@ -405,9 +408,15 @@ app.get('/api/duckdb/status', async (req, res) => {
   }
 });
 
+// Serve static files through the router
+router.use(express.static(path.join(__dirname, 'public')));
+
+// Mount the router at the base path
+app.use(BASE_PATH, router);
+
 // Start server
 app.listen(PORT, () => {
-  console.log(`ES2Tabular server running on http://localhost:${PORT}`);
+  console.log(`ES2Tabular server running on http://localhost:${PORT}${BASE_PATH}`);
   console.log(`Kibana: ${kibanaClient.baseUrl}`);
   console.log(`Data directory: ${DATA_DIR}`);
   console.log(`DuckDB database: ${path.join(DATA_DIR, 'es2tabular.duckdb')}`);
