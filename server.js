@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import morgan from 'morgan';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -15,12 +16,68 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const BASE_PATH = process.env.BASE_PATH || '';
 
+// Auth configuration
+const AUTH_REQUIRED = process.env.AUTH_REQUIRED === 'true';
+const AUTH_ALLOWED_DOMAIN = process.env.AUTH_ALLOWED_DOMAIN || 'mcpinsight.com';
+const AUTH_HEADER = 'x-auth-request-preferred-username';
+
 // Create a router for all routes
 const router = express.Router();
 
 // Middleware
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
+
+// Request logging - custom format to include x- headers
+morgan.token('x-headers', (req) => {
+  const xHeaders = Object.entries(req.headers)
+    .filter(([key]) => key.startsWith('x-'))
+    .map(([key, value]) => `${key}=${value}`)
+    .join(', ');
+  return xHeaders || '-';
+});
+app.use(morgan(':method :url :status :response-time ms [:x-headers]'));
+
+// Paths that bypass authentication (health checks, etc.)
+const AUTH_BYPASS_PATHS = ['/api/duckdb/status'];
+
+// Domain authentication middleware
+const domainAuthMiddleware = (req, res, next) => {
+  // Skip auth for health check endpoints
+  if (AUTH_BYPASS_PATHS.includes(req.path)) {
+    return next();
+  }
+
+  if (!AUTH_REQUIRED) {
+    return next();
+  }
+
+  const username = req.headers[AUTH_HEADER];
+
+  if (!username) {
+    console.warn(`Auth: Missing ${AUTH_HEADER} header`);
+    return res.status(401).json({ 
+      error: 'Unauthorized', 
+      message: 'Authentication required' 
+    });
+  }
+
+  const domain = username.split('@')[1];
+  if (!domain || domain.toLowerCase() !== AUTH_ALLOWED_DOMAIN.toLowerCase()) {
+    console.warn(`Auth: User ${username} denied - domain not in allowed list`);
+    return res.status(403).json({ 
+      error: 'Forbidden', 
+      message: `Access restricted to @${AUTH_ALLOWED_DOMAIN} users` 
+    });
+  }
+
+  // Attach user info to request for downstream use
+  req.authUser = username;
+  next();
+};
+
+// Apply auth middleware to the router
+router.use(domainAuthMiddleware);
 
 // Create data directory if it doesn't exist
 const DATA_DIR = path.join(__dirname, 'data');
@@ -420,4 +477,5 @@ app.listen(PORT, () => {
   console.log(`Kibana: ${kibanaClient.baseUrl}`);
   console.log(`Data directory: ${DATA_DIR}`);
   console.log(`DuckDB database: ${path.join(DATA_DIR, 'es2tabular.duckdb')}`);
+  console.log(`Auth: ${AUTH_REQUIRED ? `enabled (domain: @${AUTH_ALLOWED_DOMAIN})` : 'disabled'}`);
 });
