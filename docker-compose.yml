@@ -2,8 +2,14 @@ services:
   es2tabular:
     build: .
     container_name: es2tabular
-    ports:
-      - "${PORT:-3000}:3000"
+    #ports:
+    #  - "${PORT:-3000}:3000"
+    networks:
+      - traefik-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.es2tabular.entrypoints=web"
+      - "traefik.http.routers.es2tabular.rule=PathPrefix(`/es2tabular`)"
     environment:
       - NODE_ENV=production
       - PORT=3000
@@ -25,3 +31,7 @@ services:
 
 volumes:
   es2tabular-data:
+
+networks:
+  traefik-network:
+    external: true
