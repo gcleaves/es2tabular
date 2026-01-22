@@ -294,6 +294,47 @@
             flex: 0 0 auto;
         }
 
+        /* Resize handle for Monaco SQL editor */
+        .monaco-resize-wrapper {
+            position: relative;
+        }
+
+        .monaco-resize-handle {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 8px;
+            background: linear-gradient(to bottom, transparent 0%, #e0e0e0 50%, transparent 100%);
+            cursor: ns-resize;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0.6;
+            transition: opacity 0.2s, background 0.2s;
+        }
+
+        .monaco-resize-handle:hover,
+        .monaco-resize-handle.dragging {
+            opacity: 1;
+            background: linear-gradient(to bottom, transparent 0%, #667eea 50%, transparent 100%);
+        }
+
+        .monaco-resize-handle::before {
+            content: '';
+            width: 40px;
+            height: 4px;
+            background: currentColor;
+            border-radius: 2px;
+            color: #999;
+        }
+
+        .monaco-resize-handle:hover::before,
+        .monaco-resize-handle.dragging::before {
+            color: #667eea;
+        }
+
         form {
             display: flex;
             flex-direction: column;
@@ -865,7 +906,10 @@
 
                                 <div class="form-group" style="margin-top: 15px;">
                                     <label>SQL Query</label>
-                                    <div id="monaco-sql-container" class="monaco-container"></div>
+                                    <div class="monaco-resize-wrapper">
+                                        <div id="monaco-sql-container" class="monaco-container"></div>
+                                        <div class="monaco-resize-handle" @mousedown="startSqlEditorResize($event)"></div>
+                                    </div>
                                 </div>
 
                                 <div class="button-group">
@@ -1539,6 +1583,36 @@
                     } catch (error) {
                         console.error('Error initializing Monaco SQL Editor:', error);
                     }
+                },
+
+                startSqlEditorResize(event) {
+                    event.preventDefault();
+                    const container = document.getElementById('monaco-sql-container');
+                    const handle = event.target;
+                    if (!container) return;
+
+                    const startY = event.clientY;
+                    const startHeight = container.offsetHeight;
+                    
+                    handle.classList.add('dragging');
+
+                    const onMouseMove = (e) => {
+                        const deltaY = e.clientY - startY;
+                        const newHeight = Math.max(100, Math.min(800, startHeight + deltaY));
+                        container.style.height = newHeight + 'px';
+                        if (monacoSqlEditor) {
+                            monacoSqlEditor.layout();
+                        }
+                    };
+
+                    const onMouseUp = () => {
+                        handle.classList.remove('dragging');
+                        document.removeEventListener('mousemove', onMouseMove);
+                        document.removeEventListener('mouseup', onMouseUp);
+                    };
+
+                    document.addEventListener('mousemove', onMouseMove);
+                    document.addEventListener('mouseup', onMouseUp);
                 }
             }
         }
