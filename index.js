@@ -43,13 +43,15 @@ function processAggregation(agg, options = {}, path = []) {
   // Handle filters aggregation (buckets object)
   if (agg.buckets && typeof agg.buckets === 'object' && !Array.isArray(agg.buckets)) {
     // This is a filters aggregation
-    // For filters, we use a generic column name like "filter" or derive from context
+    // For filters, we use the current aggregation name if available (for nested filters),
+    // otherwise fall back to filterColumnName (top-level) or a generic 'filter'
     const bucketNames = Object.keys(agg.buckets);
     
     for (const bucketName of bucketNames) {
       const bucket = agg.buckets[bucketName];
       // For filters aggregation, use a descriptive column name
-      const columnName = options.filterColumnName || 'filter';
+      // Prefer currentAggregationName for nested filters aggregations
+      const columnName = options.currentAggregationName || options.filterColumnName || 'filter';
       const newPath = [...path, { column: columnName, value: bucketName }];
       
       // Check if this bucket has nested aggregations
