@@ -1104,8 +1104,8 @@
                 sidebarCollapsed: false,
 
                 // ES Query state
-                index: '',
-                query: '{\n  "size": 0,\n  "aggs": {\n    "my_aggregation": {\n      "terms": {\n        "field": "field_name",\n        "size": 10\n      }\n    }\n  }\n}',
+                index: `veriprobe-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`,
+                query: '{\n  "size": 0,\n  "aggs": {\n    "by_date": {\n      "date_histogram": {\n        "field": "server_time",\n        "calendar_interval": "day"\n      },\n      "aggs": {\n        "status": {\n          "terms": {\n            "field": "fraud_report.status",\n            "size": 10\n          }\n        }\n      }\n    }\n  }\n}',
                 loading: false,
                 converting: false,
                 message: '',

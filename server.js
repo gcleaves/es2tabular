@@ -123,16 +123,39 @@ router.post('/api/query', async (req, res) => {
     // Execute query via Kibana
     const esResponse = await kibanaClient.search(index, query);
 
-    // Generate unique filename
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `query-${timestamp}.json`;
+    // Check if response has aggregations
+    const hasAggregations = esResponse.aggregations && Object.keys(esResponse.aggregations).length > 0;
+
+    // Generate descriptive filename from aggregation names + timestamp
+    const now = new Date();
+    const timestamp = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, '').replace('T', 'T');
+    let namePart = 'query';
+    if (hasAggregations) {
+      // Extract all aggregation names recursively
+      const aggNames = [];
+      const extractAggNames = (obj) => {
+        if (!obj || typeof obj !== 'object') return;
+        for (const key of Object.keys(obj)) {
+          if (obj[key] && typeof obj[key] === 'object' && obj[key].buckets !== undefined) {
+            aggNames.push(key);
+            // Check for nested aggregations in buckets
+            const buckets = Array.isArray(obj[key].buckets) ? obj[key].buckets : Object.values(obj[key].buckets || {});
+            for (const bucket of buckets) {
+              extractAggNames(bucket);
+            }
+          }
+        }
+      };
+      extractAggNames(esResponse.aggregations);
+      if (aggNames.length > 0) {
+        namePart = aggNames.join('_').replace(/[^a-zA-Z0-9_]/g, '');
+      }
+    }
+    const filename = `${namePart}_${timestamp}.json`;
     const filepath = path.join(DATA_DIR, filename);
 
     // Save JSON response locally
     fs.writeFileSync(filepath, JSON.stringify(esResponse, null, 2), 'utf8');
-
-    // Check if response has aggregations
-    const hasAggregations = esResponse.aggregations && Object.keys(esResponse.aggregations).length > 0;
     
     res.json({
       success: true,
@@ -186,8 +209,12 @@ router.post('/api/convert', async (req, res) => {
     // Convert to CSV
     const csv = tableToCSV(table);
 
-    // Save CSV file
-    const csvFilename = filename.replace('.json', '.csv');
+    // Generate descriptive filename from column headers + timestamp
+    const columns = Object.keys(table[0] || {});
+    const columnPart = columns.join('_').replace(/[^a-zA-Z0-9_]/g, '');
+    const now = new Date();
+    const timestamp = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, '').replace('T', 'T');
+    const csvFilename = `${columnPart}_${timestamp}.csv`;
     const csvFilepath = path.join(DATA_DIR, csvFilename);
     fs.writeFileSync(csvFilepath, csv, 'utf8');
 

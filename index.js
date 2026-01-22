@@ -73,7 +73,7 @@ function processAggregation(agg, options = {}, path = []) {
   else if (agg.buckets && Array.isArray(agg.buckets)) {
     // This is a terms aggregation
     // The aggregation name should be passed from parent, but if not, we'll use a default
-    const aggregationName = options.currentAggregationName || options.aggregationName || 'aggregation';
+    const aggregationName = options.currentAggregationName || options.topLevelAggregationName || options.aggregationName || 'aggregation';
     
     for (const bucket of agg.buckets) {
       // Include the bucket's key in the path with the aggregation name as column
