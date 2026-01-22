@@ -131,24 +131,28 @@ router.post('/api/query', async (req, res) => {
     const timestamp = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, '').replace('T', 'T');
     let namePart = 'query';
     if (hasAggregations) {
-      // Extract all aggregation names recursively
-      const aggNames = [];
+      // Extract unique aggregation names recursively
+      const aggNames = new Set();
       const extractAggNames = (obj) => {
         if (!obj || typeof obj !== 'object') return;
         for (const key of Object.keys(obj)) {
           if (obj[key] && typeof obj[key] === 'object' && obj[key].buckets !== undefined) {
-            aggNames.push(key);
-            // Check for nested aggregations in buckets
+            aggNames.add(key);
+            // Check for nested aggregations in first bucket only (to get structure, not duplicates)
             const buckets = Array.isArray(obj[key].buckets) ? obj[key].buckets : Object.values(obj[key].buckets || {});
-            for (const bucket of buckets) {
-              extractAggNames(bucket);
+            if (buckets.length > 0) {
+              extractAggNames(buckets[0]);
             }
           }
         }
       };
       extractAggNames(esResponse.aggregations);
-      if (aggNames.length > 0) {
-        namePart = aggNames.join('_').replace(/[^a-zA-Z0-9_]/g, '');
+      if (aggNames.size > 0) {
+        namePart = [...aggNames].join('_').replace(/[^a-zA-Z0-9_]/g, '');
+        // Limit filename length (leave room for timestamp and extension)
+        if (namePart.length > 100) {
+          namePart = namePart.substring(0, 100);
+        }
       }
     }
     const filename = `${namePart}_${timestamp}.json`;
@@ -211,7 +215,11 @@ router.post('/api/convert', async (req, res) => {
 
     // Generate descriptive filename from column headers + timestamp
     const columns = Object.keys(table[0] || {});
-    const columnPart = columns.join('_').replace(/[^a-zA-Z0-9_]/g, '');
+    let columnPart = columns.join('_').replace(/[^a-zA-Z0-9_]/g, '');
+    // Limit filename length (leave room for timestamp and extension)
+    if (columnPart.length > 100) {
+      columnPart = columnPart.substring(0, 100);
+    }
     const now = new Date();
     const timestamp = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, '').replace('T', 'T');
     const csvFilename = `${columnPart}_${timestamp}.csv`;
