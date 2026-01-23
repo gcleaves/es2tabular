@@ -311,6 +311,93 @@ router.get('/api/files/:filename', (req, res) => {
 });
 
 /**
+ * API Route: Rename file
+ * PUT /api/files/:filename
+ * Body: { newFilename: string }
+ */
+router.put('/api/files/:filename', (req, res) => {
+  try {
+    const { filename } = req.params;
+    const { newFilename } = req.body;
+
+    if (!newFilename) {
+      return res.status(400).json({ error: 'New filename is required' });
+    }
+
+    // Validate new filename (prevent path traversal and invalid characters)
+    if (newFilename.includes('/') || newFilename.includes('\\') || newFilename.includes('..')) {
+      return res.status(400).json({ error: 'Invalid filename' });
+    }
+
+    const oldPath = path.join(DATA_DIR, filename);
+    const newPath = path.join(DATA_DIR, newFilename);
+
+    if (!fs.existsSync(oldPath)) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    if (fs.existsSync(newPath)) {
+      return res.status(409).json({ error: 'A file with that name already exists' });
+    }
+
+    fs.renameSync(oldPath, newPath);
+    res.json({ success: true, message: 'File renamed', newFilename });
+  } catch (error) {
+    console.error('Error renaming file:', error);
+    res.status(500).json({ 
+      error: 'Failed to rename file',
+      message: error.message 
+    });
+  }
+});
+
+/**
+ * API Route: Rename file
+ * PUT /api/files/:filename
+ * Body: { newFilename: string }
+ */
+router.put('/api/files/:filename', (req, res) => {
+  try {
+    const { filename } = req.params;
+    const { newFilename } = req.body;
+
+    if (!newFilename) {
+      return res.status(400).json({ error: 'New filename is required' });
+    }
+
+    // Validate new filename (no path traversal, valid characters)
+    if (newFilename.includes('/') || newFilename.includes('\\') || newFilename.includes('..')) {
+      return res.status(400).json({ error: 'Invalid filename' });
+    }
+
+    const oldPath = path.join(DATA_DIR, filename);
+    const newPath = path.join(DATA_DIR, newFilename);
+
+    if (!fs.existsSync(oldPath)) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    if (fs.existsSync(newPath)) {
+      return res.status(409).json({ error: 'A file with that name already exists' });
+    }
+
+    fs.renameSync(oldPath, newPath);
+    res.json({ 
+      success: true, 
+      message: 'File renamed',
+      oldFilename: filename,
+      newFilename: newFilename
+    });
+  } catch (error) {
+    console.error('Error renaming file:', error);
+    res.status(500).json({ 
+      error: 'Failed to rename file',
+      message: error.message 
+    });
+  }
+});
+
+/**
  * API Route: Delete file
  * DELETE /api/files/:filename
  */

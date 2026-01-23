@@ -515,6 +515,79 @@
             font-size: 13px;
         }
 
+        .file-name-display {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .file-name-text {
+            cursor: pointer;
+        }
+
+        .file-name-text:hover {
+            color: #667eea;
+        }
+
+        .file-name-edit {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+
+        .file-name-input {
+            flex: 1;
+            padding: 4px 8px;
+            border: 2px solid #667eea;
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: inherit;
+            min-width: 0;
+        }
+
+        .file-name-input:focus {
+            outline: none;
+        }
+
+        .btn-icon {
+            padding: 4px 6px;
+            font-size: 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            border: none;
+            background: #e0e0e0;
+            color: #333;
+            transition: all 0.2s;
+        }
+
+        .btn-icon:hover {
+            background: #d0d0d0;
+        }
+
+        .btn-icon.confirm {
+            background: #48bb78;
+            color: white;
+        }
+
+        .btn-icon.confirm:hover {
+            background: #38a169;
+        }
+
+        .btn-icon.cancel {
+            background: #f56565;
+            color: white;
+        }
+
+        .btn-icon.cancel:hover {
+            background: #e53e3e;
+        }
+
+        .edit-hint {
+            font-size: 10px;
+            color: #999;
+            margin-left: 4px;
+        }
+
         .file-meta {
             font-size: 11px;
             color: #666;
@@ -1002,7 +1075,31 @@
                         <template x-for="file in visibleFiles" :key="file.filename">
                             <div class="file-item">
                                 <div class="file-info">
-                                    <div class="file-name" x-text="file.filename"></div>
+                                    <div class="file-name">
+                                        <!-- Display mode -->
+                                        <div x-show="editingFile !== file.filename" class="file-name-display">
+                                            <span 
+                                                class="file-name-text" 
+                                                x-text="file.filename"
+                                                @click="startRename(file.filename)"
+                                                title="Click to rename"
+                                            ></span>
+                                            <span class="edit-hint">(click to rename)</span>
+                                        </div>
+                                        <!-- Edit mode -->
+                                        <div x-show="editingFile === file.filename" class="file-name-edit">
+                                            <input 
+                                                type="text"
+                                                class="file-name-input"
+                                                x-model="editingFilename"
+                                                @keydown.enter="confirmRename(file.filename)"
+                                                @keydown.escape="cancelRename"
+                                                x-ref="renameInput"
+                                            >
+                                            <button @click="confirmRename(file.filename)" class="btn-icon confirm" title="Save">✓</button>
+                                            <button @click="cancelRename" class="btn-icon cancel" title="Cancel">✕</button>
+                                        </div>
+                                    </div>
                                     <div class="file-meta">
                                         <span x-text="formatSize(file.size)"></span> • 
                                         <span x-text="formatDate(file.created)"></span>
@@ -1157,6 +1254,10 @@
                 queryResult: null,
                 csvResult: null,
                 files: [],
+                
+                // File rename state
+                editingFile: null,
+                editingFilename: '',
 
                 // DuckDB state
                 duckdbStatus: 'idle', // idle, loading, ready, error
@@ -1452,6 +1553,78 @@
                         }
 
                         this.showMessage('File deleted', 'success');
+                        await this.loadFiles();
+                    } catch (error) {
+                        this.showMessage(error.message, 'error');
+                    }
+                },
+
+                startRename(filename) {
+                    this.editingFile = filename;
+                    this.editingFilename = filename;
+                    // Focus the input after Alpine updates the DOM
+                    this.$nextTick(() => {
+                        // Small timeout to ensure x-show has fully rendered the input
+                        setTimeout(() => {
+                            // Find the visible input (the one currently being edited)
+                            const inputs = document.querySelectorAll('.file-name-input');
+                            let input = null;
+                            for (const inp of inputs) {
+                                // Check if this input is visible (offsetParent is null for hidden elements)
+                                if (inp.offsetParent !== null) {
+                                    input = inp;
+                                    break;
+                                }
+                            }
+                            if (input) {
+                                input.focus();
+                                // Select the filename without extension
+                                const dotIndex = filename.lastIndexOf('.');
+                                if (dotIndex > 0) {
+                                    input.setSelectionRange(0, dotIndex);
+                                } else {
+                                    input.select();
+                                }
+                            }
+                        }, 20);
+                    });
+                },
+
+                cancelRename() {
+                    this.editingFile = null;
+                    this.editingFilename = '';
+                },
+
+                async confirmRename(oldFilename) {
+                    const newFilename = this.editingFilename.trim();
+                    
+                    if (!newFilename) {
+                        this.showMessage('Filename cannot be empty', 'error');
+                        return;
+                    }
+
+                    if (newFilename === oldFilename) {
+                        this.cancelRename();
+                        return;
+                    }
+
+                    try {
+                        const response = await fetch(`${BASE_PATH}/api/files/${encodeURIComponent(oldFilename)}`, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ newFilename }),
+                        });
+
+                        const data = await response.json();
+
+                        if (!response.ok) {
+                            throw new Error(data.error || 'Failed to rename file');
+                        }
+
+                        this.showMessage(`File renamed to ${newFilename}`, 'success');
+                        this.cancelRename();
                         await this.loadFiles();
                     } catch (error) {
                         this.showMessage(error.message, 'error');
