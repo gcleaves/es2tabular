@@ -661,6 +661,37 @@
             position: sticky;
             top: 0;
             white-space: nowrap;
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.2s;
+        }
+
+        .results-table th:hover {
+            background: #edf2f7;
+        }
+
+        .results-table th .sort-indicator {
+            display: inline-block;
+            margin-left: 6px;
+            font-size: 10px;
+            color: #999;
+            transition: color 0.2s;
+        }
+
+        .results-table th .sort-indicator.active {
+            color: #667eea;
+        }
+
+        .results-table th .sort-indicator.asc::after {
+            content: '▲';
+        }
+
+        .results-table th .sort-indicator.desc::after {
+            content: '▼';
+        }
+
+        .results-table th .sort-indicator.inactive::after {
+            content: '⇅';
         }
 
         .results-table td {
@@ -709,6 +740,57 @@
 
         .sql-editor-section {
             flex: 0 0 auto;
+        }
+
+        /* Collapsible data loaders section */
+        .data-loaders-section {
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            overflow: hidden;
+        }
+
+        .data-loaders-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 15px;
+            background: #f7fafc;
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.2s;
+        }
+
+        .data-loaders-header:hover {
+            background: #edf2f7;
+        }
+
+        .data-loaders-header h4 {
+            margin: 0;
+            font-size: 14px;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .data-loaders-header .collapse-icon {
+            font-size: 12px;
+            transition: transform 0.2s;
+            color: #666;
+        }
+
+        .data-loaders-header .collapse-icon.collapsed {
+            transform: rotate(-90deg);
+        }
+
+        .data-loaders-content {
+            padding: 15px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .data-loaders-content.collapsed {
+            display: none;
         }
 
         .sql-results-section {
@@ -922,59 +1004,71 @@
                         <div class="sql-section">
                             <!-- File selector and SQL Editor -->
                             <div class="sql-editor-section">
-                                <div class="form-group">
-                                    <label>Load CSV File into DuckDB</label>
-                                    <div style="display: flex; gap: 10px;">
-                                        <select x-model="selectedCsvFile" style="flex: 1;">
-                                            <option value="">Select a local CSV file...</option>
-                                            <template x-for="file in csvFiles" :key="file.filename">
-                                                <option :value="file.filename" x-text="file.filename"></option>
+                                <!-- Collapsible Data Loaders Section -->
+                                <div class="data-loaders-section">
+                                    <div class="data-loaders-header" @click="dataLoadersCollapsed = !dataLoadersCollapsed">
+                                        <h4>
+                                            <span class="collapse-icon" :class="{ collapsed: dataLoadersCollapsed }">▼</span>
+                                            Load Data into DuckDB
+                                        </h4>
+                                        <span style="font-size: 12px; color: #666;" x-text="loadedTables.length ? loadedTables.length + ' table(s) loaded' : ''"></span>
+                                    </div>
+                                    <div class="data-loaders-content" :class="{ collapsed: dataLoadersCollapsed }">
+                                        <div class="form-group" style="margin-bottom: 15px;">
+                                            <label style="margin-bottom: 6px;">Load CSV File</label>
+                                            <div style="display: flex; gap: 10px;">
+                                                <select x-model="selectedCsvFile" style="flex: 1;">
+                                                    <option value="">Select a local CSV file...</option>
+                                                    <template x-for="file in csvFiles" :key="file.filename">
+                                                        <option :value="file.filename" x-text="file.filename"></option>
+                                                    </template>
+                                                </select>
+                                                <button 
+                                                    @click="loadSelectedCsv" 
+                                                    class="btn-secondary btn-small"
+                                                    :disabled="!selectedCsvFile || duckdbStatus !== 'ready'"
+                                                >
+                                                    Load
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <!-- Load from URL (S3, HTTP) -->
+                                        <div class="form-group" style="margin-bottom: 15px;">
+                                            <label style="margin-bottom: 6px;">Load from URL (S3, HTTP/HTTPS)</label>
+                                            <div style="display: flex; gap: 10px;">
+                                                <input 
+                                                    type="text" 
+                                                    x-model="externalCsvUrl" 
+                                                    placeholder="s3://bucket/path/file.csv or https://..."
+                                                    style="flex: 1; font-family: monospace;"
+                                                >
+                                                <button 
+                                                    @click="loadExternalCsv" 
+                                                    class="btn-secondary btn-small"
+                                                    :disabled="!externalCsvUrl || duckdbStatus !== 'ready'"
+                                                >
+                                                    Load URL
+                                                </button>
+                                            </div>
+                                            <small style="color: #666; font-size: 11px; margin-top: 4px; display: block;">
+                                                For S3, configure credentials via environment variables or the S3 config endpoint.
+                                            </small>
+                                        </div>
+
+                                        <!-- Loaded tables -->
+                                        <div x-show="loadedTables.length > 0" class="loaded-tables" style="margin-bottom: 0;">
+                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                                <h4 style="margin: 0;">Tables in Database</h4>
+                                                <button @click="refreshTables" class="btn-outline btn-small" style="padding: 4px 8px; font-size: 12px;">
+                                                    Refresh
+                                                </button>
+                                            </div>
+                                            <template x-for="table in loadedTables" :key="table">
+                                                <span class="table-chip" x-text="table" style="cursor: pointer;" @click="insertTableName(table)" title="Click to insert into query"></span>
                                             </template>
-                                        </select>
-                                        <button 
-                                            @click="loadSelectedCsv" 
-                                            class="btn-secondary btn-small"
-                                            :disabled="!selectedCsvFile || duckdbStatus !== 'ready'"
-                                        >
-                                            Load
-                                        </button>
+                                        </div>
                                     </div>
-                                </div>
-
-                                <!-- Load from URL (S3, HTTP) -->
-                                <div class="form-group">
-                                    <label>Or Load from URL (S3, HTTP/HTTPS)</label>
-                                    <div style="display: flex; gap: 10px;">
-                                        <input 
-                                            type="text" 
-                                            x-model="externalCsvUrl" 
-                                            placeholder="s3://bucket/path/file.csv or https://..."
-                                            style="flex: 1; font-family: monospace;"
-                                        >
-                                        <button 
-                                            @click="loadExternalCsv" 
-                                            class="btn-secondary btn-small"
-                                            :disabled="!externalCsvUrl || duckdbStatus !== 'ready'"
-                                        >
-                                            Load URL
-                                        </button>
-                                    </div>
-                                    <small style="color: #666; font-size: 11px; margin-top: 4px; display: block;">
-                                        For S3, configure credentials via environment variables or the S3 config endpoint.
-                                    </small>
-                                </div>
-
-                                <!-- Loaded tables -->
-                                <div x-show="loadedTables.length > 0" class="loaded-tables">
-                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                                        <h4 style="margin: 0;">Tables in Database</h4>
-                                        <button @click="refreshTables" class="btn-outline btn-small" style="padding: 4px 8px; font-size: 12px;">
-                                            Refresh
-                                        </button>
-                                    </div>
-                                    <template x-for="table in loadedTables" :key="table">
-                                        <span class="table-chip" x-text="table" style="cursor: pointer;" @click="insertTableName(table)" title="Click to insert into query"></span>
-                                    </template>
                                 </div>
 
                                 <div class="form-group" style="margin-top: 15px;">
@@ -1013,12 +1107,15 @@
                                             <thead>
                                                 <tr>
                                                     <template x-for="col in sqlColumns" :key="col">
-                                                        <th x-text="col"></th>
+                                                        <th @click="toggleSort(col)" :title="'Click to sort by ' + col">
+                                                            <span x-text="col"></span>
+                                                            <span class="sort-indicator" :class="getSortIndicatorClass(col)"></span>
+                                                        </th>
                                                     </template>
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                <template x-for="(row, idx) in sqlResults" :key="idx">
+                                                <template x-for="(row, idx) in sortedSqlResults" :key="idx">
                                                     <tr>
                                                         <template x-for="col in sqlColumns" :key="col">
                                                             <td x-text="row[col] !== null && row[col] !== undefined ? row[col] : 'NULL'" :title="row[col]"></td>
@@ -1263,14 +1360,17 @@
                 duckdbStatus: 'idle', // idle, loading, ready, error
                 duckdbMessage: '',
                 duckdbMessageType: 'info',
+                dataLoadersCollapsed: false,
                 selectedCsvFile: '',
                 externalCsvUrl: '',
                 loadedTables: [],
-                sqlQuery: '-- Tables persist across sessions in data/es2tabular.duckdb\n-- Load a CSV file or enter a query below\nSELECT * FROM data LIMIT 100',
+                sqlQuery: "SELECT * FROM '/app/data/*.csv' LIMIT 100",
                 sqlResults: null,
                 sqlColumns: [],
                 sqlExecuting: false,
                 sqlExecutionTime: null,
+                sortColumn: null,
+                sortDirection: 'asc', // 'asc' or 'desc'
 
                 get csvFiles() {
                     return this.files.filter(f => f.filename.endsWith('.csv'));
@@ -1281,6 +1381,61 @@
                         !f.filename.endsWith('.duckdb') && 
                         !f.filename.endsWith('.duckdb.wal')
                     );
+                },
+
+                get sortedSqlResults() {
+                    if (!this.sqlResults || !this.sortColumn) {
+                        return this.sqlResults;
+                    }
+                    
+                    const col = this.sortColumn;
+                    const dir = this.sortDirection === 'asc' ? 1 : -1;
+                    
+                    return [...this.sqlResults].sort((a, b) => {
+                        const aVal = a[col];
+                        const bVal = b[col];
+                        
+                        // Handle nulls - put them at the end
+                        if (aVal === null || aVal === undefined) return 1;
+                        if (bVal === null || bVal === undefined) return -1;
+                        
+                        // Numeric comparison
+                        if (typeof aVal === 'number' && typeof bVal === 'number') {
+                            return (aVal - bVal) * dir;
+                        }
+                        
+                        // String comparison (case-insensitive)
+                        const aStr = String(aVal).toLowerCase();
+                        const bStr = String(bVal).toLowerCase();
+                        
+                        if (aStr < bStr) return -1 * dir;
+                        if (aStr > bStr) return 1 * dir;
+                        return 0;
+                    });
+                },
+
+                toggleSort(column) {
+                    if (this.sortColumn === column) {
+                        // Toggle direction or reset
+                        if (this.sortDirection === 'asc') {
+                            this.sortDirection = 'desc';
+                        } else {
+                            // Reset sort
+                            this.sortColumn = null;
+                            this.sortDirection = 'asc';
+                        }
+                    } else {
+                        // New column, start with ascending
+                        this.sortColumn = column;
+                        this.sortDirection = 'asc';
+                    }
+                },
+
+                getSortIndicatorClass(column) {
+                    if (this.sortColumn !== column) {
+                        return 'inactive';
+                    }
+                    return this.sortDirection === 'asc' ? 'asc active' : 'desc active';
                 },
 
                 switchTab(tab) {
@@ -1404,6 +1559,8 @@
                     this.sqlExecuting = true;
                     this.sqlResults = null;
                     this.sqlColumns = [];
+                    this.sortColumn = null;
+                    this.sortDirection = 'asc';
                     this.duckdbMessage = '';
 
                     try {
@@ -1428,6 +1585,8 @@
                     this.sqlResults = null;
                     this.sqlColumns = [];
                     this.sqlExecutionTime = null;
+                    this.sortColumn = null;
+                    this.sortDirection = 'asc';
                 },
 
                 showDuckDBMessage(text, type = 'info') {
