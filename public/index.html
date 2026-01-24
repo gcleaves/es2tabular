@@ -1098,8 +1098,17 @@
                             <!-- Results Section -->
                             <div class="sql-results-section">
                                 <div class="results-info" x-show="sqlResults">
-                                    <span x-text="sqlResults ? `${sqlResults.length} rows returned` : ''"></span>
-                                    <span x-text="sqlExecutionTime ? `Executed in ${sqlExecutionTime}ms` : ''"></span>
+                                    <div>
+                                        <span x-text="sqlResults ? `${sqlResults.length} rows returned` : ''"></span>
+                                        <span x-text="sqlExecutionTime ? `Executed in ${sqlExecutionTime}ms` : ''"></span>
+                                    </div>
+                                    <button 
+                                        @click="downloadSqlResultsCsv" 
+                                        class="btn-secondary btn-small"
+                                        x-show="sqlResults && sqlResults.length > 0"
+                                    >
+                                        Download CSV
+                                    </button>
                                 </div>
                                 <div class="results-container">
                                     <template x-if="sqlResults && sqlResults.length > 0">
@@ -1587,6 +1596,49 @@
                     this.sqlExecutionTime = null;
                     this.sortColumn = null;
                     this.sortDirection = 'asc';
+                },
+
+                downloadSqlResultsCsv() {
+                    if (!this.sqlResults || this.sqlResults.length === 0) return;
+
+                    // Use sorted results if sorting is active
+                    const data = this.sortColumn ? this.sortedSqlResults : this.sqlResults;
+                    const columns = this.sqlColumns;
+
+                    // Helper to escape CSV values
+                    const escapeCsvValue = (value) => {
+                        if (value === null || value === undefined) return '';
+                        const str = String(value);
+                        // Escape if contains comma, quote, or newline
+                        if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+                            return '"' + str.replace(/"/g, '""') + '"';
+                        }
+                        return str;
+                    };
+
+                    // Build CSV content
+                    const headerRow = columns.map(escapeCsvValue).join(',');
+                    const dataRows = data.map(row => 
+                        columns.map(col => escapeCsvValue(row[col])).join(',')
+                    );
+                    const csvContent = [headerRow, ...dataRows].join('\n');
+
+                    // Create and trigger download
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    
+                    // Generate filename with timestamp
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '').slice(0, 15);
+                    link.setAttribute('href', url);
+                    link.setAttribute('download', `sql_results_${timestamp}.csv`);
+                    link.style.visibility = 'hidden';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+
+                    this.showDuckDBMessage(`Downloaded ${data.length} rows as CSV`, 'success');
                 },
 
                 showDuckDBMessage(text, type = 'info') {

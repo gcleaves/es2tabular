@@ -79,7 +79,7 @@ const domainAuthMiddleware = (req, res, next) => {
 // Apply auth middleware to the router
 router.use(domainAuthMiddleware);
 
-// Create data directory if it doesn't exist
+// Create base data directory if it doesn't exist
 const DATA_DIR = path.join(__dirname, 'data');
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -88,18 +88,51 @@ if (!fs.existsSync(DATA_DIR)) {
 // Initialize Kibana client
 const kibanaClient = new KibanaClient();
 
-// Initialize DuckDB service
-const duckdb = new DuckDBService(DATA_DIR);
+// Map to store DuckDB service instances per user
+const duckdbInstances = new Map();
 
-// Initialize DuckDB on startup
-(async () => {
-  try {
-    await duckdb.init();
-    console.log('DuckDB service initialized');
-  } catch (error) {
-    console.error('Failed to initialize DuckDB:', error);
+/**
+ * Get user-specific data directory
+ * @param {string} username - Username (email)
+ * @returns {string} Path to user's data directory
+ */
+function getUserDataDir(username) {
+  if (!username) {
+    // Fallback to shared directory if no username (when auth is disabled)
+    return DATA_DIR;
   }
-})();
+  // Sanitize username for filesystem (replace @ and other special chars)
+  const safeUsername = username.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const userDir = path.join(DATA_DIR, safeUsername);
+  if (!fs.existsSync(userDir)) {
+    fs.mkdirSync(userDir, { recursive: true });
+  }
+  return userDir;
+}
+
+/**
+ * Get or create DuckDB service instance for a user
+ * @param {string} username - Username (email)
+ * @returns {DuckDBService} DuckDB service instance
+ */
+function getDuckDBService(username) {
+  if (!username) {
+    // Fallback to shared instance if no username (when auth is disabled)
+    if (!duckdbInstances.has('')) {
+      const sharedDir = getUserDataDir('');
+      const service = new DuckDBService(sharedDir);
+      duckdbInstances.set('', service);
+    }
+    return duckdbInstances.get('');
+  }
+
+  if (!duckdbInstances.has(username)) {
+    const userDir = getUserDataDir(username);
+    const service = new DuckDBService(userDir);
+    duckdbInstances.set(username, service);
+  }
+  return duckdbInstances.get(username);
+}
 
 /**
  * API Route: Execute Elasticsearch query
@@ -109,6 +142,7 @@ const duckdb = new DuckDBService(DATA_DIR);
 router.post('/api/query', async (req, res) => {
   try {
     const { index, query } = req.body;
+    const username = req.authUser || '';
 
     if (!index) {
       return res.status(400).json({ error: 'Index is required' });
@@ -118,7 +152,7 @@ router.post('/api/query', async (req, res) => {
       return res.status(400).json({ error: 'Query is required' });
     }
 
-    console.log(`Executing query on index: ${index}`);
+    console.log(`Executing query on index: ${index} for user: ${username || 'anonymous'}`);
     
     // Execute query via Kibana
     const esResponse = await kibanaClient.search(index, query);
@@ -156,7 +190,8 @@ router.post('/api/query', async (req, res) => {
       }
     }
     const filename = `${namePart}_${timestamp}.json`;
-    const filepath = path.join(DATA_DIR, filename);
+    const userDataDir = getUserDataDir(username);
+    const filepath = path.join(userDataDir, filename);
 
     // Save JSON response locally
     fs.writeFileSync(filepath, JSON.stringify(esResponse, null, 2), 'utf8');
@@ -186,12 +221,14 @@ router.post('/api/query', async (req, res) => {
 router.post('/api/convert', async (req, res) => {
   try {
     const { filename, aggregationName } = req.body;
+    const username = req.authUser || '';
 
     if (!filename) {
       return res.status(400).json({ error: 'Filename is required' });
     }
 
-    const filepath = path.join(DATA_DIR, filename);
+    const userDataDir = getUserDataDir(username);
+    const filepath = path.join(userDataDir, filename);
     
     if (!fs.existsSync(filepath)) {
       return res.status(404).json({ error: 'File not found' });
@@ -223,7 +260,7 @@ router.post('/api/convert', async (req, res) => {
     const now = new Date();
     const timestamp = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, '').replace('T', 'T');
     const csvFilename = `${columnPart}_${timestamp}.csv`;
-    const csvFilepath = path.join(DATA_DIR, csvFilename);
+    const csvFilepath = path.join(userDataDir, csvFilename);
     fs.writeFileSync(csvFilepath, csv, 'utf8');
 
     res.json({
@@ -248,9 +285,17 @@ router.post('/api/convert', async (req, res) => {
  */
 router.get('/api/files', (req, res) => {
   try {
-    const files = fs.readdirSync(DATA_DIR)
+    const username = req.authUser || '';
+    const userDataDir = getUserDataDir(username);
+    
+    const files = fs.readdirSync(userDataDir)
+      .filter(filename => {
+        // Filter out directories and hidden files
+        const filepath = path.join(userDataDir, filename);
+        return fs.statSync(filepath).isFile() && !filename.startsWith('.');
+      })
       .map(filename => {
-        const filepath = path.join(DATA_DIR, filename);
+        const filepath = path.join(userDataDir, filename);
         const stats = fs.statSync(filepath);
         // Use mtime (modification time) as primary, fallback for containers where birthtime may not be reliable
         const created = stats.birthtime && stats.birthtime.getTime() > 0 ? stats.birthtime : stats.mtime;
@@ -281,7 +326,14 @@ router.get('/api/files', (req, res) => {
 router.get('/api/files/:filename', (req, res) => {
   try {
     const { filename } = req.params;
-    const filepath = path.join(DATA_DIR, filename);
+    const username = req.authUser || '';
+    const userDataDir = getUserDataDir(username);
+    const filepath = path.join(userDataDir, filename);
+
+    // Prevent path traversal
+    if (!filepath.startsWith(userDataDir)) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
 
     if (!fs.existsSync(filepath)) {
       return res.status(404).json({ error: 'File not found' });
@@ -319,47 +371,7 @@ router.put('/api/files/:filename', (req, res) => {
   try {
     const { filename } = req.params;
     const { newFilename } = req.body;
-
-    if (!newFilename) {
-      return res.status(400).json({ error: 'New filename is required' });
-    }
-
-    // Validate new filename (prevent path traversal and invalid characters)
-    if (newFilename.includes('/') || newFilename.includes('\\') || newFilename.includes('..')) {
-      return res.status(400).json({ error: 'Invalid filename' });
-    }
-
-    const oldPath = path.join(DATA_DIR, filename);
-    const newPath = path.join(DATA_DIR, newFilename);
-
-    if (!fs.existsSync(oldPath)) {
-      return res.status(404).json({ error: 'File not found' });
-    }
-
-    if (fs.existsSync(newPath)) {
-      return res.status(409).json({ error: 'A file with that name already exists' });
-    }
-
-    fs.renameSync(oldPath, newPath);
-    res.json({ success: true, message: 'File renamed', newFilename });
-  } catch (error) {
-    console.error('Error renaming file:', error);
-    res.status(500).json({ 
-      error: 'Failed to rename file',
-      message: error.message 
-    });
-  }
-});
-
-/**
- * API Route: Rename file
- * PUT /api/files/:filename
- * Body: { newFilename: string }
- */
-router.put('/api/files/:filename', (req, res) => {
-  try {
-    const { filename } = req.params;
-    const { newFilename } = req.body;
+    const username = req.authUser || '';
 
     if (!newFilename) {
       return res.status(400).json({ error: 'New filename is required' });
@@ -370,8 +382,14 @@ router.put('/api/files/:filename', (req, res) => {
       return res.status(400).json({ error: 'Invalid filename' });
     }
 
-    const oldPath = path.join(DATA_DIR, filename);
-    const newPath = path.join(DATA_DIR, newFilename);
+    const userDataDir = getUserDataDir(username);
+    const oldPath = path.join(userDataDir, filename);
+    const newPath = path.join(userDataDir, newFilename);
+
+    // Prevent path traversal
+    if (!oldPath.startsWith(userDataDir) || !newPath.startsWith(userDataDir)) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
 
     if (!fs.existsSync(oldPath)) {
       return res.status(404).json({ error: 'File not found' });
@@ -404,7 +422,14 @@ router.put('/api/files/:filename', (req, res) => {
 router.delete('/api/files/:filename', (req, res) => {
   try {
     const { filename } = req.params;
-    const filepath = path.join(DATA_DIR, filename);
+    const username = req.authUser || '';
+    const userDataDir = getUserDataDir(username);
+    const filepath = path.join(userDataDir, filename);
+
+    // Prevent path traversal
+    if (!filepath.startsWith(userDataDir)) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
 
     if (!fs.existsSync(filepath)) {
       return res.status(404).json({ error: 'File not found' });
@@ -433,9 +458,15 @@ router.delete('/api/files/:filename', (req, res) => {
 router.post('/api/duckdb/query', async (req, res) => {
   try {
     const { sql } = req.body;
+    const username = req.authUser || '';
 
     if (!sql) {
       return res.status(400).json({ error: 'SQL query is required' });
+    }
+
+    const duckdb = getDuckDBService(username);
+    if (!duckdb.initialized) {
+      await duckdb.init();
     }
 
     const startTime = Date.now();
@@ -467,16 +498,29 @@ router.post('/api/duckdb/query', async (req, res) => {
 router.post('/api/duckdb/load', async (req, res) => {
   try {
     const { path: csvPath, tableName } = req.body;
+    const username = req.authUser || '';
 
     if (!csvPath) {
       return res.status(400).json({ error: 'CSV path is required' });
     }
 
+    const duckdb = getDuckDBService(username);
+    if (!duckdb.initialized) {
+      await duckdb.init();
+    }
+
     // Determine if it's a local file or remote URL
     let fullPath = csvPath;
     if (!csvPath.startsWith('s3://') && !csvPath.startsWith('http://') && !csvPath.startsWith('https://')) {
-      // Local file - resolve relative to data directory
-      fullPath = path.join(DATA_DIR, csvPath);
+      // Local file - resolve relative to user's data directory
+      const userDataDir = getUserDataDir(username);
+      fullPath = path.join(userDataDir, csvPath);
+      
+      // Prevent path traversal
+      if (!fullPath.startsWith(userDataDir)) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      
       if (!fs.existsSync(fullPath)) {
         return res.status(404).json({ error: 'File not found' });
       }
@@ -506,6 +550,11 @@ router.post('/api/duckdb/load', async (req, res) => {
  */
 router.get('/api/duckdb/tables', async (req, res) => {
   try {
+    const username = req.authUser || '';
+    const duckdb = getDuckDBService(username);
+    if (!duckdb.initialized) {
+      await duckdb.init();
+    }
     const tables = await duckdb.listTables();
     res.json({ success: true, tables });
   } catch (error) {
@@ -524,6 +573,11 @@ router.get('/api/duckdb/tables', async (req, res) => {
 router.get('/api/duckdb/tables/:tableName', async (req, res) => {
   try {
     const { tableName } = req.params;
+    const username = req.authUser || '';
+    const duckdb = getDuckDBService(username);
+    if (!duckdb.initialized) {
+      await duckdb.init();
+    }
     const schema = await duckdb.describeTable(tableName);
     res.json({ success: true, tableName, schema });
   } catch (error) {
@@ -542,6 +596,11 @@ router.get('/api/duckdb/tables/:tableName', async (req, res) => {
 router.delete('/api/duckdb/tables/:tableName', async (req, res) => {
   try {
     const { tableName } = req.params;
+    const username = req.authUser || '';
+    const duckdb = getDuckDBService(username);
+    if (!duckdb.initialized) {
+      await duckdb.init();
+    }
     await duckdb.dropTable(tableName);
     res.json({ success: true, message: `Table ${tableName} dropped` });
   } catch (error) {
@@ -561,6 +620,11 @@ router.delete('/api/duckdb/tables/:tableName', async (req, res) => {
 router.post('/api/duckdb/s3-config', async (req, res) => {
   try {
     const config = req.body;
+    const username = req.authUser || '';
+    const duckdb = getDuckDBService(username);
+    if (!duckdb.initialized) {
+      await duckdb.init();
+    }
     await duckdb.configureS3(config);
     res.json({ success: true, message: 'S3 configuration updated' });
   } catch (error) {
@@ -578,6 +642,11 @@ router.post('/api/duckdb/s3-config', async (req, res) => {
  */
 router.get('/api/duckdb/status', async (req, res) => {
   try {
+    const username = req.authUser || '';
+    const duckdb = getDuckDBService(username);
+    if (!duckdb.initialized) {
+      await duckdb.init();
+    }
     const tables = await duckdb.listTables();
     res.json({
       success: true,
@@ -586,6 +655,8 @@ router.get('/api/duckdb/status', async (req, res) => {
       tableCount: tables.length
     });
   } catch (error) {
+    const username = req.authUser || '';
+    const duckdb = getDuckDBService(username);
     res.json({
       success: false,
       initialized: duckdb.initialized,
@@ -604,7 +675,8 @@ app.use(BASE_PATH, router);
 app.listen(PORT, () => {
   console.log(`ES2Tabular server running on http://localhost:${PORT}${BASE_PATH}`);
   console.log(`Kibana: ${kibanaClient.baseUrl}`);
-  console.log(`Data directory: ${DATA_DIR}`);
-  console.log(`DuckDB database: ${path.join(DATA_DIR, 'es2tabular.duckdb')}`);
+  console.log(`Base data directory: ${DATA_DIR}`);
+  console.log(`Per-user data directories: ${DATA_DIR}/<username>/`);
+  console.log(`Per-user DuckDB databases: ${DATA_DIR}/<username>/es2tabular.duckdb`);
   console.log(`Auth: ${AUTH_REQUIRED ? `enabled (domain: @${AUTH_ALLOWED_DOMAIN})` : 'disabled'}`);
 });
