@@ -39,7 +39,7 @@ morgan.token('x-headers', (req) => {
 app.use(morgan(':method :url :status :response-time ms [:x-headers]'));
 
 // Paths that bypass authentication (health checks, etc.)
-const AUTH_BYPASS_PATHS = ['/api/duckdb/status'];
+const AUTH_BYPASS_PATHS = ['/api/duckdb/status', '/api/me'];
 
 // Domain authentication middleware
 const domainAuthMiddleware = (req, res, next) => {
@@ -78,6 +78,18 @@ const domainAuthMiddleware = (req, res, next) => {
 
 // Apply auth middleware to the router
 router.use(domainAuthMiddleware);
+
+/**
+ * API Route: Current user / auth status (bypasses auth so it can return "No auth" when disabled)
+ * GET /api/me
+ */
+router.get('/api/me', (req, res) => {
+  if (!AUTH_REQUIRED) {
+    return res.json({ authEnabled: false, username: null });
+  }
+  const username = req.headers[AUTH_HEADER] || null;
+  res.json({ authEnabled: true, username });
+});
 
 // Create base data directory if it doesn't exist
 const DATA_DIR = path.join(__dirname, 'data');

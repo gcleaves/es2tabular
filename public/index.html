@@ -77,6 +77,14 @@
             font-size: 0.9em;
         }
 
+        .header-center {
+            flex: 1;
+            text-align: center;
+            color: #555;
+            font-size: 0.95em;
+            font-weight: 500;
+        }
+
         /* Tab Navigation */
         .tab-nav {
             display: flex;
@@ -886,6 +894,7 @@
                 <h1>ES2Tabular</h1>
                 <p class="subtitle">Convert Elasticsearch aggregation queries to CSV format</p>
             </div>
+            <div class="header-center" x-text="authDisplay"></div>
             <div class="tab-nav">
                 <button 
                     class="tab-btn" 
@@ -1347,6 +1356,9 @@
                 // Tab state
                 activeTab: 'esquery',
                 
+                // Auth display (username or "No auth")
+                authDisplay: '',
+
                 // Sidebar state
                 sidebarCollapsed: false,
 
@@ -1863,7 +1875,25 @@
                     return date.toLocaleString();
                 },
 
+                async loadAuth() {
+                    const genericSqlDefault = "SELECT * FROM '/app/data/*.csv' LIMIT 100";
+                    try {
+                        const res = await fetch(`${BASE_PATH}/api/me`);
+                        const data = await res.json();
+                        this.authDisplay = data.authEnabled && data.username ? data.username : 'No auth';
+                        if (data.authEnabled && data.username && this.sqlQuery === genericSqlDefault) {
+                            const safe = data.username.replace(/[^a-zA-Z0-9._-]/g, '_');
+                            const userDefault = `SELECT * FROM '/app/data/${safe}/*.csv' LIMIT 100`;
+                            this.sqlQuery = userDefault;
+                            if (monacoSqlEditor) monacoSqlEditor.setValue(userDefault);
+                        }
+                    } catch {
+                        this.authDisplay = 'No auth';
+                    }
+                },
+
                 init() {
+                    this.loadAuth();
                     this.loadFiles();
                     this.initMonacoEditor();
                     
