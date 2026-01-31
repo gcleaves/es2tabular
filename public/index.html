@@ -1695,8 +1695,8 @@
                         this.showMessage('Query executed successfully!', 'success');
                         await this.loadFiles();
                         
-                        // Automatically convert to CSV if aggregations are present
-                        if (data.hasAggregations) {
+                        // Automatically convert to CSV if aggregations or raw hits are present
+                        if (data.hasAggregations || (data.hits > 0)) {
                             await this.convertToCSV();
                         }
                     } catch (error) {
@@ -1712,7 +1712,7 @@
                         return;
                     }
 
-                    const isAutomatic = this.csvResult === null && this.queryResult.hasAggregations;
+                    const isAutomatic = this.csvResult === null && (this.queryResult.hasAggregations || (this.queryResult.hits > 0));
                     if (!isAutomatic) {
                         this.converting = true;
                     }

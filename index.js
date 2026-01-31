@@ -1,34 +1,87 @@
 import fs from 'fs';
 
 /**
- * Converts Elasticsearch aggregation output to tabular format
- * @param {Object} esOutput - The Elasticsearch aggregation response
+ * Converts Elasticsearch output to tabular format.
+ * Supports (1) aggregation responses and (2) non-aggregated search hits.
+ * For hits: columns are _id plus each _source field; non-scalar fields are JSON strings.
+ *
+ * @param {Object} esOutput - The Elasticsearch response (aggregations or hits)
  * @param {Object} options - Configuration options
  * @returns {Array<Object>} Array of row objects with column names as keys
  */
 export function esToTable(esOutput, options = {}) {
   const { aggregations } = esOutput;
-  
-  if (!aggregations) {
-    throw new Error('No aggregations found in Elasticsearch output');
+  const hits = esOutput.hits?.hits;
+
+  if (aggregations && Object.keys(aggregations).length > 0) {
+    const aggName = options.aggregationName || Object.keys(aggregations)[0];
+    const aggregation = aggregations[aggName];
+    if (!aggregation) {
+      throw new Error(`Aggregation "${aggName}" not found`);
+    }
+    const processOptions = {
+      ...options,
+      topLevelAggregationName: aggName,
+      filterColumnName: options.filterColumnName || aggName
+    };
+    return processAggregation(aggregation, processOptions);
   }
 
-  // Find the first aggregation (or use specified aggregation name)
-  const aggName = options.aggregationName || Object.keys(aggregations)[0];
-  const aggregation = aggregations[aggName];
-
-  if (!aggregation) {
-    throw new Error(`Aggregation "${aggName}" not found`);
+  if (Array.isArray(hits) && hits.length > 0) {
+    return hitsToTable(hits);
   }
 
-  // Pass the top-level aggregation name and set filter column name
-  const processOptions = {
-    ...options,
-    topLevelAggregationName: aggName,
-    filterColumnName: options.filterColumnName || aggName
-  };
+  throw new Error('No aggregations or hits found in Elasticsearch output');
+}
 
-  return processAggregation(aggregation, processOptions);
+/**
+ * True if value is scalar (null, boolean, number, string).
+ */
+function isScalar(v) {
+  return v === null || typeof v !== 'object';
+}
+
+/**
+ * Convert a value to a table cell: scalars as-is, non-scalars as JSON string.
+ */
+function valueToCell(v) {
+  if (isScalar(v)) return v;
+  return JSON.stringify(v);
+}
+
+/**
+ * Build tabular rows from raw search hits.
+ * Columns: _id, then each _source key (first-seen order). Non-scalar fields as JSON.
+ *
+ * @param {Array<Object>} hits - hits.hits from ES response
+ * @returns {Array<Object>} Array of row objects
+ */
+function hitsToTable(hits) {
+  const colList = ['_id'];
+  const seen = new Set(['_id']);
+  for (const h of hits) {
+    const src = h._source || {};
+    for (const k of Object.keys(src)) {
+      if (!seen.has(k)) {
+        seen.add(k);
+        colList.push(k);
+      }
+    }
+  }
+
+  const rows = hits.map((hit) => {
+    const row = {};
+    row._id = hit._id;
+    const src = hit._source || {};
+    for (const c of colList) {
+      if (c === '_id') continue;
+      const v = src[c];
+      row[c] = v === undefined ? '' : valueToCell(v);
+    }
+    return row;
+  });
+
+  return rows;
 }
 
 /**
@@ -101,6 +154,13 @@ function processAggregation(agg, options = {}, path = []) {
         results.push(row);
       }
     }
+    
+    // Add "_other_" row if there are documents not captured in top N buckets
+    if (agg.sum_other_doc_count > 0) {
+      const otherPath = [...path, { column: aggregationName, value: '_other_' }];
+      const otherRow = createRowFromBucket({ doc_count: agg.sum_other_doc_count }, otherPath);
+      results.push(otherRow);
+    }
   }
 
   return results;
@@ -142,6 +202,37 @@ function findNestedAggregations(bucket) {
 }
 
 /**
+ * Finds metric aggregations in a bucket (filter aggs, value_count, sum, avg, etc.)
+ * These are objects with doc_count or value but no buckets property.
+ * Returns array of {name, value} objects.
+ */
+function findMetricAggregations(bucket) {
+  const metrics = [];
+  const skipKeys = new Set(['key', 'key_as_string', 'doc_count', 'doc_count_error_upper_bound', 'sum_other_doc_count']);
+  
+  for (const key in bucket) {
+    if (skipKeys.has(key)) continue;
+    const obj = bucket[key];
+    if (obj && typeof obj === 'object' && obj !== null && !Array.isArray(obj)) {
+      // It's an object - check if it's a metric aggregation (no buckets)
+      if (obj.buckets === undefined) {
+        // This is a metric aggregation (filter, value_count, sum, avg, cardinality, etc.)
+        // Extract the most relevant value
+        if (obj.doc_count !== undefined) {
+          // Filter aggregation
+          metrics.push({ name: key, value: obj.doc_count });
+        } else if (obj.value !== undefined) {
+          // Value metric (sum, avg, min, max, cardinality, value_count, etc.)
+          metrics.push({ name: key, value: obj.value });
+        }
+      }
+    }
+  }
+  
+  return metrics;
+}
+
+/**
  * Creates a row object from a bucket
  * @param {Object} bucket - The bucket object
  * @param {Array} path - Array of {column, value} objects
@@ -174,6 +265,12 @@ function createRowFromBucket(bucket, path) {
   // Add doc_count if present
   if (bucket.doc_count !== undefined) {
     row['doc_count'] = bucket.doc_count;
+  }
+  
+  // Add metric aggregations (filter aggs, sum, avg, etc.) as columns
+  const metrics = findMetricAggregations(bucket);
+  for (const { name, value } of metrics) {
+    row[name] = value;
   }
   
   return row;

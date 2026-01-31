@@ -255,7 +255,7 @@ router.post('/api/convert', async (req, res) => {
 
     if (table.length === 0) {
       return res.status(400).json({ 
-        error: 'No data to convert. Make sure the query includes aggregations.' 
+        error: 'No data to convert.' 
       });
     }
 
