@@ -485,13 +485,22 @@ router.post('/api/duckdb/query', async (req, res) => {
     const result = await duckdb.query(sql);
     const executionTime = Date.now() - startTime;
 
-    res.json({
+    // BigInt-safe JSON: DuckDB returns BigInt for BIGINT columns; JSON.stringify cannot serialize them
+    // Also handle Date/timestamp objects (including DuckDB custom types with toISOString)
+    const replacer = (_, v) => {
+      if (typeof v === 'bigint') return v.toString();
+      if (v instanceof Date) return v.toISOString();
+      if (v && typeof v.toISOString === 'function') return v.toISOString();
+      return v;
+    };
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({
       success: true,
       columns: result.columns,
       rows: result.rows,
       rowCount: result.rowCount,
       executionTime
-    });
+    }, replacer));
   } catch (error) {
     console.error('DuckDB query error:', error);
     res.status(500).json({
