@@ -31,7 +31,7 @@ dropped when a workspace is captured.
 
 | Variable | Example |
 | --- | --- |
-| `ES2TABULAR_URL` | `https://misc.cleaves.ai/es2tabular` |
+| `ES2TABULAR_URL` | `https://tools.example.com/es2tabular` |
 | `ES2TABULAR_TOKEN_URL` | `https://auth.example.com/realms/REALM/protocol/openid-connect/token` |
 | `ES2TABULAR_CLIENT_ID` | `es2tabular-notebook` |
 | `ES2TABULAR_CLIENT_SECRET` | *(secret field)* |

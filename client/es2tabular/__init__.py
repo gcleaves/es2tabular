@@ -11,7 +11,7 @@ what you get back.
 
 Configuration comes from the environment unless passed explicitly:
 
-    ES2TABULAR_URL            e.g. https://misc.cleaves.ai/es2tabular
+    ES2TABULAR_URL            e.g. https://tools.example.com/es2tabular
     ES2TABULAR_CLIENT_ID      Keycloak client-credentials client
     ES2TABULAR_CLIENT_SECRET
     ES2TABULAR_TOKEN_URL      Keycloak token endpoint
@@ -52,7 +52,7 @@ class Client:
 
     Args:
         url: Base URL including any base path, e.g.
-            ``https://misc.cleaves.ai/es2tabular``.
+            ``https://tools.example.com/es2tabular``.
         client_id, client_secret, token_url: Keycloak client credentials. The
             client exchanges them for a short-lived bearer token and refreshes
             it as needed; there is no interactive login.
@@ -74,7 +74,7 @@ class Client:
         if not url:
             raise ES2TabularError(
                 "No server URL. Pass url=... or set ES2TABULAR_URL, e.g. "
-                "https://misc.cleaves.ai/es2tabular"
+                "https://tools.example.com/es2tabular"
             )
         self.url = url.rstrip("/")
 
