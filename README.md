@@ -177,6 +177,41 @@ Execute an Elasticsearch query via Kibana.
 }
 ```
 
+### POST `/api/query/table`
+
+Execute a query and get the converted rows back in the response. Unlike
+`/api/query` this writes nothing to disk, so a client needs one round trip
+rather than three. Intended for notebooks and scripts.
+
+**Request Body:**
+```json
+{
+  "index": "my-index-*",
+  "query": { "size": 0, "aggs": { "by_client": { "terms": { "field": "client_id" } } } },
+  "aggregationName": "optional_agg_name",
+  "format": "json"
+}
+```
+
+`format` may be `json` (default) or `csv`; with `csv` the response body is the
+CSV itself, served as `text/csv`.
+
+**Response:**
+```json
+{
+  "success": true,
+  "columns": ["by_client", "doc_count"],
+  "rows": [{ "by_client": "acme", "doc_count": 1200 }],
+  "rowCount": 1,
+  "hasAggregations": true,
+  "total": 1200,
+  "took": 42
+}
+```
+
+A query that matches nothing returns `rowCount: 0` rather than an error. A
+request naming an aggregation that is not in the response returns 400.
+
 ### POST `/api/convert`
 
 Convert a stored JSON file to CSV.
@@ -258,3 +293,37 @@ npm test
 ```
 
 This will process `example/output01.json` and generate `example/output01.csv`.
+
+## Setting up Keycloak for calling es2tabular API endpoints
+
+Create a new client credential client.
+
+Since oauth2-proxy checks for `email_verified` and `aud`, and es2tabluar expects an email in `preferred_username`, we need to make scope changes:
+- deleted default email scopes
+- add mappers in the client dedicate scope
+  - email_verified = true
+  - email = something@mcpinsight.com
+  - preferred_username = something@mcpinsight.com
+  - aud = es2tabular
+
+## Using es2tabular from a notebook
+
+[`client/`](client/) is a Python client that sends a query to
+`/api/query/table` and returns a dataframe. It authenticates with the Keycloak
+client-credentials flow described above — a token request, not an interactive
+login — so it works from a headless kernel.
+
+```bash
+pip install "es2tabular @ git+https://github.com/gcleaves/es2tabular.git#subdirectory=client"
+```
+
+```python
+from es2tabular import Client
+
+es = Client()  # ES2TABULAR_URL, ES2TABULAR_CLIENT_ID, ES2TABULAR_CLIENT_SECRET, ES2TABULAR_TOKEN_URL
+df = es.query("logs-*", {"size": 0, "aggs": {...}})
+```
+
+See [client/README.md](client/README.md) for configuration and
+[client/example_notebook.py](client/example_notebook.py) for a marimo notebook
+that queries Elasticsearch and then runs DuckDB locally against the result.

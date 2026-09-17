@@ -226,6 +226,73 @@ router.post('/api/query', async (req, res) => {
 });
 
 /**
+ * API Route: Execute an Elasticsearch query and return the table directly
+ * POST /api/query/table
+ * Body: { index: string, query: object, aggregationName?: string, format?: 'json'|'csv' }
+ *
+ * Unlike /api/query this writes nothing to disk and returns the converted rows
+ * in the response, so a notebook can get a dataframe in a single round trip.
+ */
+router.post('/api/query/table', async (req, res) => {
+  try {
+    const { index, query, aggregationName, format = 'json' } = req.body;
+    const username = req.authUser || '';
+
+    if (!index) {
+      return res.status(400).json({ error: 'Index is required' });
+    }
+
+    if (!query) {
+      return res.status(400).json({ error: 'Query is required' });
+    }
+
+    console.log(`Executing table query on index: ${index} for user: ${username || 'anonymous'}`);
+
+    const esResponse = await kibanaClient.search(index, query);
+
+    const hasAggregations = esResponse.aggregations && Object.keys(esResponse.aggregations).length > 0;
+    const hitCount = esResponse.hits?.hits?.length || 0;
+
+    // An empty result is a valid answer, not an error - esToTable throws on it,
+    // so only call it when there is something to convert.
+    let table = [];
+    if (hasAggregations || hitCount > 0) {
+      try {
+        table = esToTable(esResponse, aggregationName ? { aggregationName } : {});
+      } catch (error) {
+        return res.status(400).json({
+          error: 'Failed to convert response to a table',
+          message: error.message
+        });
+      }
+    }
+
+    const total = esResponse.hits?.total?.value ?? esResponse.hits?.total ?? 0;
+
+    if (format === 'csv') {
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      return res.send(tableToCSV(table));
+    }
+
+    res.json({
+      success: true,
+      columns: Object.keys(table[0] || {}),
+      rows: table,
+      rowCount: table.length,
+      hasAggregations,
+      total,
+      took: esResponse.took,
+    });
+  } catch (error) {
+    console.error('Error executing table query:', error);
+    res.status(500).json({
+      error: 'Failed to execute query',
+      message: error.message
+    });
+  }
+});
+
+/**
  * API Route: Convert JSON file to CSV
  * POST /api/convert
  * Body: { filename: string, aggregationName?: string }
