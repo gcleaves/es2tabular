@@ -6,3 +6,8 @@ data/
 .DS_Store
 .env
 example/
+# Python client build artefacts
+__pycache__/
+*.egg-info/
+dist/
+.venv/
